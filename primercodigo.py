@@ -1,3 +1,7 @@
 print("holiwis")
 a = 17
 print(a)
+hola = "mi primo se cayo por las escaleras"
+print(hola)
+b = sqrt(a)
+c = 2*b
