@@ -13,3 +13,4 @@ print(c)
 #no no, q no coño?
 print('estoy locoooo')
 print('algo mas????')
+print('t queda claro???')
