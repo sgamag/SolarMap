@@ -11,3 +11,4 @@ c = 2*b
 print(c)
 #gama sisisi q rico papu
 #no no, q no coño?
+print('estoy locoooo')
