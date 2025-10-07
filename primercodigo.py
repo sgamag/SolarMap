@@ -5,3 +5,4 @@ hola = "mi primo se cayo por las escaleras"
 print(hola)
 b = sqrt(a)
 c = 2*b
+#gama sisisi q rico papu
