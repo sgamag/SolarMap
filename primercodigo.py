@@ -6,4 +6,4 @@ print(hola)
 b = sqrt(a)
 c = 2*b
 #gama sisisi q rico papu
-#no no?
+#no no, q no coño?
