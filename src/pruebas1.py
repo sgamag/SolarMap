@@ -1,13 +1,12 @@
-import os
-import requests
+import os, requests
 from dotenv import load_dotenv
 
-# 1) Credenciales (usa .env)
+# 1) Credenciales (en .env)
 load_dotenv()
 USER = os.getenv("CDSE_USER")
 PASSWORD = os.getenv("CDSE_PASSWORD")
 
-# 2) Obtener token (FORM, no JSON)
+# 2) Obtener token (form-data, no JSON)
 AUTH_URL = "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token"
 auth_form = {
     "client_id": "cdse-public",
@@ -15,47 +14,46 @@ auth_form = {
     "username": USER,
     "password": PASSWORD,
 }
-auth_resp = requests.post(AUTH_URL, data=auth_form)
-auth_resp.raise_for_status()
-token = auth_resp.json()["access_token"]
+tok = requests.post(AUTH_URL, data=auth_form)
+tok.raise_for_status()
+token = tok.json()["access_token"]
 
-# 3) Búsqueda STAC (endpoint correcto)
-STAC_URL = "https://catalogue.dataspace.copernicus.eu/stac/search"
+# 3) STAC Item Search (endpoint correcto)
+STAC_URL = "https://stac.dataspace.copernicus.eu/v1/search"
 headers = {
     "Authorization": f"Bearer {token}",
     "Content-Type": "application/json",
 }
 
-# ⚠️ Ejemplo con Sentinel-2 L2A (óptico). Para Sentinel-1 usa "sentinel-1-grd".
 payload = {
     "collections": ["sentinel-2-l2a"],
-    "bbox": [-3.8, 40.3, -3.6, 40.5],  # [west, south, east, north]
-    "datetime": "2023-06-01T00:00:00Z/2023-06-30T23:59:59Z",
+    "bbox": [-3.8, 40.3, -3.6, 40.5],             # [west, south, east, north]
+    "datetime": "2024-06-01T00:00:00Z/2024-06-30T23:59:59Z",
     "limit": 5
 }
 
 resp = requests.post(STAC_URL, json=payload, headers=headers)
-
-# 4) Manejo robusto de errores para ver qué pasa si es 400
-try:
-    resp.raise_for_status()
-except requests.HTTPError:
-    print("❌ Error:", resp.status_code)
-    print(resp.text)  # mensaje exacto del servidor (muy útil)
-    raise
+resp.raise_for_status()
 
 data = resp.json()
-features = data.get("features", [])
-print(f"🔎 Resultados: {len(features)}")
+print("Resultados:", len(data.get("features", [])))
+for f in data.get("features", []):
+    p = f["properties"]
+    print(f["id"], p.get("datetime"), p.get("eo:cloud_cover"))
 
-for f in features:
-    props = f.get("properties", {})
-    assets = f.get("assets", {})
-    print("🛰️  ID:", f.get("id"))
-    print("📅  Fecha:", props.get("datetime"))
-    # Solo S2 tiene 'eo:cloud_cover'
-    print("☁️  Nubosidad:", props.get("eo:cloud_cover", "N/A"))
-    # 'thumbnail' suele existir, pero comprueba
-    thumb = assets.get("thumbnail", {}).get("href", "sin miniatura")
-    print("🔗 Miniatura:", thumb)
-    print()
+
+import requests
+from PIL import Image
+from io import BytesIO
+
+token = tok  # usa el mismo token que usaste en la búsqueda
+
+thumbnail_url = "https://zipper.dataspace.copernicus.eu/api/v1/collections/SENTINEL-2-L2A/items/S2A_MSIL2A_20240624T110641_N0510_R137_T30TVK_20240624T153247/assets/thumbnail"
+
+headers = {"Authorization": f"Bearer {token}"}
+
+response = requests.get(thumbnail_url, headers=headers)
+response.raise_for_status()  # ❌ aquí daba el 404 sin token
+
+img = Image.open(BytesIO(response.content))
+img.show()
