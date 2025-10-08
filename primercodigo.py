@@ -1,1 +1,0 @@
-from sentinelsat import SentinelAPI
