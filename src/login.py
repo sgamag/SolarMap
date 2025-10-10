@@ -58,10 +58,10 @@ def get_token(force_refresh: bool = False) -> str:
     "Si haces get_token(True), fuerza a pedir uno nuevo"
 
     load_dotenv()
-    user = os.getenv("CDSE_USER")
-    password = os.getenv("CDSE_PASSWORD")
+    usuar = os.getenv("CDSE_USER")
+    contr = os.getenv("CDSE_PASSWORD")
 
-    if not user or not password:
+    if not usuar or not contr:
         raise RuntimeError(" Faltan credenciales")
 
     " Intentamos usar token cacheado "
@@ -70,13 +70,14 @@ def get_token(force_refresh: bool = False) -> str:
         cache = verif_token()
         now = int(time.time())
         if  "access_token" in cache:
-            if cache.get("expires_at", 0) - tiempCad > now:
-                print(f"✅ Usando token cacheado desde: {ruta_guard}")
+            if cache.get("Caduca", 0) - tiempCad > now:
+                print(f"Usando token previamente cacheado desde: {ruta_guard}")
                 return cache["access_token"]
 
-    # Si no hay token válido → pedimos uno nuevo
-    print("🔄 Solicitando nuevo token a Copernicus...")
-    data = pedir_token(user, password)
+    " Si no hay token válido, pedimos uno nuevo "
+    
+    print("Solicitando nuevo token a Copernicus")
+    data = pedir_token(usuar, contr)
     guard_token(data)
-    print(f"✅ Nuevo token obtenido. Expira en {data['expires_in'] // 60} minutos.")
+    print(f"Nuevo token obtenido. Expira en {data['Caduca'] // 60} minutos.")
     return data["access_token"]
