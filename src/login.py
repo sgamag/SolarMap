@@ -2,13 +2,13 @@ import os, json, time, requests
 from pathlib import Path
 from dotenv import load_dotenv
 
-#URL oficial de login de Copernicus para pedir el token
+" URL oficial de login de Copernicus para pedir el token "
 URL_Coper = "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token"
 
-# Ruta para guardar el token
+" Ruta para guardar el token "
 ruta_guard = Path(__file__).resolve().parent.parent / "token_cdse.json"
 
-# Tiempo para que caduque el token
+" Tiempo para que caduque el token "
 tiempCad = 300  # segundos
 
 
