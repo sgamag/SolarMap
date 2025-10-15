@@ -2,5 +2,9 @@ sprint 1: 14 oct-28oct
 - Validacion de credenciales para hacer peticiones a la API (headers)
 - URL de copernicus para la API
 - Diseñar interfaz 
-- Crear interfaz de pantalla de inico y log in 
-- Recopilación de datos y empezar con el entrenamiento
+- Recopilación de datos
+
+
+
+Sugerencia para otro sprint
+- Empezar con el entrenamiento
