@@ -3,3 +3,5 @@ venv/
 
 .env
 token_cdse.json
+
+radiacion.nc
