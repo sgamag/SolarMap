@@ -1,8 +1,9 @@
-# src/ejecutar_solicitud.py
+# src/ejecutar_solicitud2.py
 from pathlib import Path
 import logging
 from pathlib import Path
 from login import get_access_token
+from login import get_token
 from descargar_radiacion import buscar_s2_l2a, descargar_zip, descomprimir_safe
 from procesar_radiacion import procesar_safe_a_geotiff
 from solicitud_builder import solicitud_bbox_ultimos_dias
@@ -14,6 +15,7 @@ logging.basicConfig(
 )
 
 def main():
+    token = get_token() # ESTA DE AQUI NO SE SI VA AQUI O EN OTRO LADO
     token = get_access_token()
     out_dir_data = Path("data")
     out_dir_tif = Path("out")
@@ -54,3 +56,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
+
