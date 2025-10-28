@@ -32,7 +32,7 @@ def pedir_token(usuario: str, contr: str) -> dict:
 
     now = int(time.time())
     data["Pedido"] = now
-    data["Caduca"] = now + int(data.get("Caduca en", 3600))
+    data["Caduca"] = now + int(data.get("expires_in", 3600))
     return data
 
 
