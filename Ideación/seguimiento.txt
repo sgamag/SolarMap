@@ -4,7 +4,25 @@ sprint 1: 14 oct-28oct
 - Diseñar interfaz 
 - Recopilación de datos
 
+Sprint 2: 29 oct-12nov
+- Capacidad de descargar imagenes
+- Tener todos los datos de villaviciosa 
+- Iniciar el codigo
+- Empezar a diseñar y crear la basa de datos
+- Seguir con la interfaz
 
+diseñar:
+que columnas necesito y que estrcutura necesito
+
+hacer filtro a nivel municipio
+los 25 años de 
 
 Sugerencia para otro sprint
+- Cargar imagenes 
 - Empezar con el entrenamiento
+- Mejora de la prediccion del potencial solar
+
+al pinchar en detectar tienes que poder acceder a cada tejado:
+que te diga cuantos paneles caben
+cuantas horas de luz le dan al dia
+.......
