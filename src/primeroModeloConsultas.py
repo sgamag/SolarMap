@@ -1,24 +1,27 @@
-# era5_bbox_to_netcdf.py
+# cams_point_daily.py
 import cdsapi
 
-c = cdsapi.Client()
+c = cdsapi.Client(quiet=False)
+
+# Madrid centro (ejemplo)
+lat, lon = 40.4168, -3.7038
 
 c.retrieve(
-    "reanalysis-era5-single-levels",
+    "cams-solar-radiation-timeseries",
     {
-        "product_type": "reanalysis",
-        "format": "netcdf",                     # << para trabajar con xarray
-        "variable": [
-            "surface_solar_radiation_downwards",
-            "sunshine_duration",
-            "total_cloud_cover",
-            "2m_temperature",
-        ],
+        "format": "csv",                # <<--- CSV
+        "time_aggregation": "daily",    # "daily" o "hourly"
         "year": "2024",
-        "month": "06",
-        "day": [f"{d:02d}" for d in range(1, 31)],
-        "time": [f"{h:02d}:00" for h in range(24)],
-        "area": [40.6, -3.9, 40.3, -3.5],      # [N, W, S, E] (ojo al orden)
+        "month": "06",                  # "01"..."12" o lista ["06","07",...]
+        "latitude": lat,
+        "longitude": lon,
+        # variables: GHI, DNI, DHI (y versiones clear-sky si quieres)
+        "variable": [
+            "surface_solar_radiation_downwards",                 # GHI
+            "surface_direct_downwelling_shortwave_flux_in_air",  # DNI
+            "surface_diffuse_downwelling_shortwave_flux_in_air", # DHI
+        ],
+        # "altitude": 650,             # opcional (m)
     },
-    "era5_madrid_202406_bbox.nc"
+    "cams_madrid_2024_06_daily.csv"
 )

@@ -4,4 +4,6 @@ venv/
 .env
 token_cdse.json
 
-radiacion.nc
+radiacion.csv
+radiacion.grib
+radiacion.grib.47d85.idx

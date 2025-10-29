@@ -1,38 +1,46 @@
-# src/procesar_cams.py
+# ======================================================
+# 🧮 PROCESAR RADIACIÓN - Cálculo del Potencial Solar
+# ======================================================
+
 import pandas as pd
+import matplotlib.pyplot as plt
 
 def procesar_radiacion_csv(nombre_archivo="radiacion.csv"):
     """
-    Procesa el archivo CSV descargado de CAMS y crea un dataset con
-    columnas limpias y un índice de potencial solar (0-100).
+    Lee el CSV generado por descargar_radiacion.py y calcula el potencial solar (0–100).
+    Guarda el dataset final con los valores procesados.
     """
-
-    print(f"📂 Leyendo datos de {nombre_archivo} ...")
+    print(f"📂 Leyendo datos de {nombre_archivo}...")
     df = pd.read_csv(nombre_archivo)
 
-    # Renombrar columnas para simplificar (según nombres típicos del CSV)
-    df.columns = [col.lower().replace(" ", "_") for col in df.columns]
+    ssrd_col = next((c for c in df.columns if "ssrd" in c), None)
+    tcc_col  = next((c for c in df.columns if "tcc" in c), None)
 
-    # Asegurar que existan las columnas esperadas
-    esperadas = ["time", "ssrd", "fdir", "fdif", "tcc"]
-    for col in esperadas:
-        if col not in df.columns:
-            print(f"⚠️ Columna {col} no encontrada. Revisar CSV.")
-    
-    # Calcular el potencial solar como:
-    #   (radiación global normalizada) * (1 - nubosidad)
-    ssrd_max = df["ssrd"].max()
-    df["potencial_solar"] = (df["ssrd"] / ssrd_max) * (1 - df["tcc"]) * 100
+    if not ssrd_col or not tcc_col:
+        raise ValueError(f"No se encontraron columnas esperadas. Columnas: {list(df.columns)}")
 
-    # Guardar nuevo dataset limpio
-    df.to_csv("dataset_potencial_solar.csv", index=False)
-    print("✅ Dataset procesado y guardado como dataset_potencial_solar.csv")
+    ssrd_max = df[ssrd_col].max()
+    df["potencial_solar"] = (df[ssrd_col] / ssrd_max) * (1 - df[tcc_col]) * 100
 
-    # Mostrar primeras filas
-    print(df[["time", "ssrd", "tcc", "potencial_solar"]].head())
+    df.to_csv("dataset_potencial_solar.csv", index=False, float_format="%.2f")
+
+    print("✅ Dataset guardado: dataset_potencial_solar.csv")
+
+    print("\n=== Muestra de resultados ===")
+    print(df[["time", ssrd_col, tcc_col, "potencial_solar"]].head())
+
+    # 📈 Gráfico rápido
+    plt.figure(figsize=(10, 5))
+    plt.plot(df["time"], df["potencial_solar"], color="orange", marker="o", linewidth=2)
+    plt.title("☀ Potencial Solar Diario (Madrid, Octubre 2024)")
+    plt.xlabel("Fecha y hora")
+    plt.ylabel("Índice de Potencial (0–100)")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
 
     return df
 
 
-if __name__ == "__main__":
+if _name_ == "_main_":
     procesar_radiacion_csv()
