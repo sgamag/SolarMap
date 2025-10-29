@@ -7,3 +7,8 @@ token_cdse.json
 radiacion.csv
 radiacion.grib
 radiacion.grib.47d85.idx
+
+era5_completo.csv
+dataset_potencial_solar.csv
+era5_completo.grib
+era5_completo.grib.02ccc.idx
