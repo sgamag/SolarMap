@@ -22,7 +22,7 @@ def descargar_era5(lat=40.4, lon=-3.7):
         key="a78d8196-d488-49c5-8c73-615d85f31c61"
     )
 
-    horas = [f"{h:02d}:00" for h in range(0, 24)]
+    horas = [f"{h:02d}:00" for h in [6,8,10,12,14,16,18,20,22]]
 
     # ======================================================
     # 📡 DESCARGA
@@ -38,8 +38,8 @@ def descargar_era5(lat=40.4, lon=-3.7):
                 "10u", "10v"                          # 💨 viento
             ],
             "year": ["2024"],
-            "month": ["10"],
-            "day": [f"{i:02d}" for i in range(1, 11)],
+            "month": [f"{m:02d}" for m in range(1, 13)],
+            "day": [f"{i:02d}" for i in range(1, 32)],
             "time": horas,
             "area": [lat + 0.5, lon - 0.5, lat - 0.5, lon + 0.5],
             "format": "grib",
