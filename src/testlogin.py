@@ -1,25 +1,23 @@
-# src/test_token.py
-"""
-Comprueba si la petición de token CDSE funciona correctamente.
-Muestra el JSON devuelto y la parte del token que hay que usar en las peticiones.
-"""
+import time
+from login import get_token  # ajusta el import si tu módulo se llama distinto
 
-from login import get_token
+def test_login_cdse():
+    print("Probando login con Copernicus Data Space...")
 
-def main():
-    print("🔐 Probando obtención de token Copernicus (CDSE)...")
-    token = get_token()  # usa tus credenciales del .env o las cacheadas
-    print("\n✅ Token obtenido correctamente.\n")
+    try:
+        token = get_token(force_refresh=True)  # fuerza pedir uno nuevo
+        print("\n✅ Token obtenido correctamente.")
+        print(f"Inicio del token: {token[:60]}...")  # mostramos solo los primeros caracteres
+        print(f"Longitud total del token: {len(token)} caracteres.")
 
-    # Mostramos solo los primeros y últimos caracteres para no revelar todo
-    print(f"Access token (parcial): {token[:40]}...{token[-10:]}")
-    print(f"Longitud del token: {len(token)} caracteres")
+        ahora = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+        print(f"Hora actual: {ahora}")
+        print("\n💡 Ya puedes usar este token en tus peticiones con 'Authorization: Bearer <token>'")
 
-    print("\n🧠 IMPORTANTE:")
-    print("Esta es la parte del token que debes usar en tus peticiones:")
-    print('headers = {"Authorization": f"Bearer <AQUÍ_TU_TOKEN>"}')
-    print("\nEjemplo:")
-    print(f'Authorization: Bearer {token[:20]}...')
+    except Exception as e:
+        print("\n❌ Error al obtener el token:")
+        print(e)
+
 
 if __name__ == "__main__":
-    main()
+    test_login_cdse()

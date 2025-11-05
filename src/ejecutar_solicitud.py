@@ -10,7 +10,7 @@ def main():
 
     # Ejemplo: Madrid aprox, últimos 30 días, ≤10% nubes
     req = solicitud_bbox_ultimos_dias(
-        lon_min=-3.8, lat_min=40.2, lon_max=-3.2, lat_max=40.7,
+        lon_min=-3.9, lat_min=39.9, lon_max=40.01, lat_max=-3.8,
         dias=30, max_cloud=10.0, top=3, nota="Madrid_30d_10cloud"
     )
 
