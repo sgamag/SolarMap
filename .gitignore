@@ -14,3 +14,29 @@ era5_completo.grib
 era5_completo.grib.02ccc.idx
 
 imagenes/
+
+# --- NUEVO: para evitar archivos automáticos o innecesarios ---
+
+# Archivos de caché y compilados de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+
+# Carpetas y salidas temporales
+out/
+data/
+previews/
+
+# Archivos grandes o intermedios
+*.zip
+*.nc
+*.nc4
+*.json
+*.txt
+
+# Archivos ocultos del sistema o IDE
+.DS_Store
+.ipynb_checkpoints/
+*.jpg
