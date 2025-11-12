@@ -27,7 +27,8 @@ __pycache__/
 
 # Carpetas y salidas temporales
 out/
-data/
+data/raw
+data/csv
 previews/
 
 # Archivos grandes o intermedios

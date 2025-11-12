@@ -11,7 +11,7 @@ CENTER_LAT = 40.415
 CENTER_LON = -3.684
 RADIUS_KM  = 24.0     # radio del cuadrado a cubrir en km
 TILE_KM    = 8.0      # tamaño del tile en km (8x8 km → 64 km2)
-DB_PATH    = Path("data/era5_madrid.db")
+DB_PATH    = Path("BaseDeDatos/era5_madrid.db")
 
 
 # ---------- Utilidades geo ----------
@@ -116,14 +116,14 @@ def main():
                 VALUES (:tile_id, :lat_min, :lat_max, :lon_min, :lon_max, :lat_center, :lon_center)
             """)
             con.execute(insert_sql, [asdict(t) for t in tiles])
-            print(f"✔ Insertadas {len(tiles)} zonas (tiles).")
+            print(f" Insertadas {len(tiles)} zonas (tiles).")
         else:
-            print(f"ℹ️  La tabla 'zonas' ya tiene {n} registros. No se insertan de nuevo.")
+            print(f" La tabla 'zonas' ya tiene {n} registros. No se insertan de nuevo.")
 
-    print(f"✔ Base creada en {DB_PATH.resolve()}")
+    print(f" Base creada en {DB_PATH.resolve()}")
     print("Estructura:")
     print(" - Tabla 'zonas' con 36 tiles de 8x8 km alrededor del Retiro")
-    print(" - Tabla 'era5_data' (1 fila por zona y hora: 06,09,12,15,18,21)")
+    print(" - Tabla 'era5_data' (1 fila por zona y hora: 12,15,18)")
 
 if __name__ == "__main__":
     main()

@@ -145,7 +145,7 @@ def convert_to_csv(nc_path: Path):
 
         # --- Filtrar y reindexar horas ---
         df["valid_time"] = pd.to_datetime(df["valid_time"])
-        valid_hours = [6, 9, 12, 15, 18, 21]
+        valid_hours = [12, 15, 18]
         df = df[df["valid_time"].dt.hour.isin(valid_hours)]
 
         # Crear rango completo de horas (06→21 cada 3h)
