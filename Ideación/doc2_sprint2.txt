@@ -1,0 +1,44 @@
+DESCARGA Y PREPARACIÓN DE ORTOFOTOS PNOA 
+
+objetivo: obtener ortofotos georreferenciadas de estudio con suficiente
+detalle para distinguir tejados.
+
+pasos realizados:
+1 selección de zona y resolución
+Se definió un punto central, un tamaño de recorte en metros y una resolución 
+en metros por píxel.
+
+2 lectura de capacidades del WMS
+Se consultó GetCapabilities del servicio PNOA para confrimar la capa de ortofoto
+y detectar si hay dimensión temporal TIME
+
+3 petición de imagen
+Se construyó el BBOX en EPSG:4326 y se calculó el tamaño en píxeles. Se lanzó un 
+GetMap y se guardó la imagen.
+
+4 georreferenciación a GeoTIFF
+Se guardó la imagen como GeoTIFF incorporando el CRS y el "transform" espacial
+para uqe se coloque correctamente en SIG
+
+5 detección de fecha
+Se intentó leer al fecha de vuelo con GetFeatureInfo en el centor del recorte. 
+Si la fecha no aparece, se guarda el valor TIME usado.
+
+parámetros principales
+CRS: EPSG:4326
+tamaño del recorte: CUT_WIDTH_M x CUT_HEIGHT_M metros
+resolución: M_PER_PX m/píxel
+capa: LAYER (ej. OI.OrthoimageCoverage)
+formato: image/jpeg para GetMap y GeoTIFF para el archivo final
+
+salidas
+JPG de vista rápida en la carpeta imágenes
+GeoTIFF georreferenciado en la misma carpeta
+
+se obtiene al menos una ortofoto GeoTIFF de la zona de prueba que
+permite distinguir tejados y queda documentado el proceso con 
+parámetros y fecha.
+
+
+ortofotos: fotos aéreas corregidas para que puedas medir y alinear 
+con mapas (sin inclinaciones).
