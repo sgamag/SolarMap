@@ -19,6 +19,9 @@ Sprint 3: 12 nov - 3 dic
 - docker descarga
 - docker limpieza y carga
 - docker del mapa 
+
+
+
 hay que convertirlo en API
 
 
