@@ -17,12 +17,14 @@ import requests
 from PIL import Image
 import matplotlib.pyplot as plt
 
+from peticion_direcciones import geocode_osm
 
-CENTER_LAT = 40.467014   # LATITUD
-CENTER_LON = -5.324880   # LONGITUD
+direccion = input("Introduce una dirección: ").strip()
+
+CENTER_LAT, CENTER_LON = geocode_osm(direccion)
 
 CUT_WIDTH_M  = 100        # <-- ANCHO IMAGEN (m)
-CUT_HEIGHT_M = 100        # <-- alto  total del recorte (m)
+CUT_HEIGHT_M = 100       # <-- ALTO RECORTE (m)
 
 M_PER_PX = 0.15           # <-- resolucion -> m/pixeel
 
@@ -32,10 +34,8 @@ FORMAT  = "image/jpeg"                               # "image/png" tmb
 CRS     = "EPSG:4326"                                # tipo lat/ lon -> no tocar
 TIMEOUT = 120                                        # segundos por petición
 
-# 5) Carpeta de salida y nombre de archivo
 OUTPUT_DIR = Path("imagenes")                        # <-- carpeta de destino
-FILENAME   = "uem_pnoa_zoom_ult"                     # nombre imagen
-# ====================================================
+FILENAME   = str(direccion)+"_imag"                     # nombre imagen
 
 
 # ---- utilidades: metros -> grados en lat/lon ----
@@ -166,66 +166,14 @@ def request_wms_image(bbox_4326, width_px: int, height_px: int, time_value: str 
     return resp.content, params.get("TIME")
 
 
-def try_get_feature_date(bbox_4326, width_px: int, height_px: int, time_value: str | None):
-    """
-    Intenta extraer la FECHA con WMS GetFeatureInfo en el centro de la imagen.
-    Si 'time_value' está definido, también lo imprime como referencia.
-    """
-    I = width_px // 2
-    J = height_px // 2
-
-    for info_format in ("application/json", "text/html", "text/plain"):
-        params = {
-            "SERVICE": "WMS",
-            "REQUEST": "GetFeatureInfo",
-            "VERSION": "1.3.0",
-            "LAYERS": LAYER,
-            "QUERY_LAYERS": LAYER,
-            "INFO_FORMAT": info_format,
-            "CRS": CRS,
-            "BBOX": f"{bbox_4326[0]},{bbox_4326[1]},{bbox_4326[2]},{bbox_4326[3]}",
-            "WIDTH": str(width_px),
-            "HEIGHT": str(height_px),
-            "I": str(I),
-            "J": str(J),
-        }
-        # Si usamos TIME en el mapa, pásalo también aquí
-        if time_value:
-            params["TIME"] = time_value
-
-        try:
-            r = requests.get(WMS_URL, params=params, timeout=TIMEOUT)
-            if r.status_code != 200:
-                continue
-
-            text = r.text
-            if info_format == "application/json":
-                try:
-                    data = r.json()
-                    print("ℹ️ GetFeatureInfo JSON (extracto):", json.dumps(data, indent=2, ensure_ascii=False)[:800])
-                    text = json.dumps(data, ensure_ascii=False)
-                except Exception:
-                    pass
-
-            # patrones de fecha típicos
-            m = re.search(r"(\d{4}-\d{2}-\d{2})", text) or \
-                re.search(r"(\d{4}/\d{2}/\d{2})", text) or \
-                re.search(r"\b(20\d{2}|19\d{2})\b", text)
-            if m:
-                return m.group(1)
-        except Exception:
-            continue
-    return None
-
-
-def save_and_show(img_bytes: bytes, output_dir: Path, base_name: str, possible_date: str | None, time_used: str | None):
+def save_and_show(img_bytes: bytes, output_dir: Path, base_name: str, possible_date: str | None):
     """
     Guarda la imagen en 'output_dir' con nombre base 'base_name' + fecha (si hay),
     y la muestra en pantalla.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     # Usa fecha detectada o, si no, la TIME usada (puede ser un año/rango)
-    tag = possible_date or (time_used if time_used else "")
+    tag = possible_date
     suffix = f"_{tag}" if tag else ""
     out_path = output_dir / f"{base_name}{suffix}.jpg"
 
@@ -240,11 +188,7 @@ def save_and_show(img_bytes: bytes, output_dir: Path, base_name: str, possible_d
         arr = plt.imread(buf)
 
     plt.figure(figsize=(7, 7))
-    ttl = "UEM — PNOA (~{:.0f} cm/px)".format(M_PER_PX * 100)
-    if possible_date:
-        ttl += f" — Fecha: {possible_date}"
-    elif time_used:
-        ttl += f" — TIME: {time_used}"
+    ttl = str(direccion)+" — PNOA (~{:.0f} cm/px)".format(M_PER_PX * 100)
     plt.title(ttl)
     plt.imshow(arr)
     plt.axis("off")
@@ -271,17 +215,10 @@ def main():
     # 2) Pedir la imagen (con TIME si la hay)
     img_bytes, time_used = request_wms_image(bbox, width_px, height_px, latest_time)
 
-    # 3) Intentar obtener fecha con GetFeatureInfo (y mostramos TIME si la había)
-    feat_date = try_get_feature_date(bbox, width_px, height_px, time_used)
-    if feat_date:
-        print("📆 Fecha detectada vía GetFeatureInfo:", feat_date)
-    elif time_used:
-        print("ℹ️ No se detectó fecha explícita; se usó TIME:", time_used)
-    else:
-        print("ℹ️ Ni fecha ni TIME disponibles (el servicio no lo expone para esta ubicación).")
+    
 
     # 4) Guardar en carpeta 'imagenes/' y mostrar
-    save_and_show(img_bytes, OUTPUT_DIR, FILENAME, feat_date, time_used)
+    save_and_show(img_bytes, OUTPUT_DIR, FILENAME, time_used)
 
 
 if __name__ == "__main__":
