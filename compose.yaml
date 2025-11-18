@@ -1,14 +1,14 @@
 services:
   # 1) Docker base de datos
-  db_setup:
+  db_config:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    container_name: solarmap_db_setup
+    container_name: solarmap_db_config
     volumes:
       - .:/app        # monta tu repo dentro del contenedor
     working_dir: /app/src
-    command: ["python", "docker/db_config.py"]
+    command: ["python", "db_config.py"]
 
   # 2) Docker descarga (Copernicus + PNOA)
   descarga:
