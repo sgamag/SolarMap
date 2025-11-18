@@ -71,15 +71,7 @@ def compute_dimensions_px(width_m: float, height_m: float, meters_per_px: float)
 
 # ---------- NUEVO: detectar la TIME más reciente del WMS ----------
 def get_latest_time_from_capabilities(wms_url: str, layer_name: str) -> str | None:
-    """
-    Llama a GetCapabilities y busca la dimensión/extent 'time' de la capa dada.
-    Devuelve un string ISO (ej. '2023-07-15' o '2023-07-15/2024-05-01') o None si no hay tiempo.
-    Estrategia:
-      - Buscar el bloque <Layer>...<Name>layer_name</Name> ... </Layer>
-      - Dentro, buscar <Dimension name="time"> o <Extent name="time"> y recoger su contenido.
-      - Si viene una lista separada por comas, coger el último valor.
-      - Si viene un rango 'start/end/period', coger 'end'.
-    """
+   
     params = {"SERVICE": "WMS", "REQUEST": "GetCapabilities", "VERSION": "1.3.0"}
     r = requests.get(wms_url, params=params, timeout=TIMEOUT)
     r.raise_for_status()
