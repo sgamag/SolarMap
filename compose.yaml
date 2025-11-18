@@ -19,11 +19,7 @@ services:
     volumes:
       - .:/app
     working_dir: /app/src
-    command: >
-      bash -lc "
-      python descargar_radiacion.py &&
-      python imagen_PNOA.py
-      "
+    entrypoint: ["python", "descargar_radiacion.py"]
 
   # 3) Docker limpieza y carga
   limpieza_carga:
