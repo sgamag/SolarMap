@@ -1,0 +1,52 @@
+services:
+  # 1) Docker base de datos
+  db_setup:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: solarmap_db_setup
+    volumes:
+      - .:/app        # monta tu repo dentro del contenedor
+    working_dir: /app/src
+    command: ["python", "docker/db_config.py"]
+
+  # 2) Docker descarga (Copernicus + PNOA)
+  descarga:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: solarmap_descarga
+    volumes:
+      - .:/app
+    working_dir: /app/src
+    command: >
+      bash -lc "
+      python descargar_radiacion.py &&
+      python imagen_PNOA.py
+      "
+
+  # 3) Docker limpieza y carga
+  limpieza_carga:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: solarmap_limpieza_carga
+    volumes:
+      - .:/app
+    working_dir: /app/src
+    command: >
+      bash -lc "
+      python procesar_radiacion.py &&
+      python docker/db_config.py
+      "
+
+  # 4) Docker del mapa (de momento, leer la BD y mostrar algo por consola)
+  mapa:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: solarmap_mapa
+    volumes:
+      - .:/app
+    working_dir: /app/src
+    command: ["python", "ver_db.py"]

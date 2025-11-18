@@ -11,6 +11,22 @@ Sprint 2: 29 oct-12nov
 - Empezar a diseñar y crear la basa de datos
 - Seguir con la interfaz
 
+Sprint 3: 12 nov - 3 dic
+- cargar todos los datos
+- cargar los datos limpios
+- separar en 2 la busqueda de la calle y del numero exacto
+- docker base de datos
+- docker descarga
+- docker limpieza y carga
+- docker del mapa 
+
+
+
+hay que convertirlo en API
+
+
+
+
 
 Sugerencia para otro sprint
 - Cargar imagenes 
