@@ -22,7 +22,7 @@ Sprint 3: 12 nov - 3 dic
 
 
 
-hay que convertirlo en API
+hay que convertirlo en API.
 
 
 
