@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+    
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css"/>
+    
+            <meta name="viewport" content="width=device-width,
+                initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                #map_e5b882cf8cc2fe8d39655b001487bc34 {
+                    position: relative;
+                    width: 100.0%;
+                    height: 100.0%;
+                    left: 0.0%;
+                    top: 0.0%;
+                }
+                .leaflet-container { font-size: 1rem; }
+            </style>
+
+            <style>html, body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            </style>
+
+            <style>#map {
+                position:absolute;
+                top:0;
+                bottom:0;
+                right:0;
+                left:0;
+                }
+            </style>
+
+            <script>
+                L_NO_TOUCH = false;
+                L_DISABLE_3D = false;
+            </script>
+
+        
+</head>
+<body>
+    
+    
+            <div class="folium-map" id="map_e5b882cf8cc2fe8d39655b001487bc34" ></div>
+        
+</body>
+<script>
+    
+    
+            var map_e5b882cf8cc2fe8d39655b001487bc34 = L.map(
+                "map_e5b882cf8cc2fe8d39655b001487bc34",
+                {
+                    center: [40.3743845, -3.9268271],
+                    crs: L.CRS.EPSG3857,
+                    ...{
+  "zoom": 32,
+  "zoomControl": true,
+  "preferCanvas": false,
+}
+
+                }
+            );
+
+            
+
+        
+    
+            var tile_layer_cb34265239aba04556b62b5efd01ecf2 = L.tileLayer(
+                "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                {
+  "minZoom": 0,
+  "maxZoom": 19,
+  "maxNativeZoom": 19,
+  "noWrap": false,
+  "attribution": "\u0026copy; \u003ca href=\"https://www.openstreetmap.org/copyright\"\u003eOpenStreetMap\u003c/a\u003e contributors",
+  "subdomains": "abc",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_cb34265239aba04556b62b5efd01ecf2.addTo(map_e5b882cf8cc2fe8d39655b001487bc34);
+        
+    
+            var tile_layer_66f34ed04d54fd6536945cd6c3377b26 = L.tileLayer(
+                "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                {
+  "minZoom": 0,
+  "maxZoom": 18,
+  "maxNativeZoom": 18,
+  "noWrap": false,
+  "attribution": "Tiles \u00a9 Esri \u2014 Source: Esri, Earthstar Geographics, Maxar, etc.",
+  "subdomains": "abc",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_66f34ed04d54fd6536945cd6c3377b26.addTo(map_e5b882cf8cc2fe8d39655b001487bc34);
+        
+    
+            var marker_af004ea35ce3ec821cfcdbe76bc52bc6 = L.marker(
+                [40.3743845, -3.9268271],
+                {
+}
+            ).addTo(map_e5b882cf8cc2fe8d39655b001487bc34);
+        
+    
+        var popup_86619f416d1af907068587d9c7f61111 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_a54c1ef6c030d68a8fc11fcb27c65dc8 = $(`<div id="html_a54c1ef6c030d68a8fc11fcb27c65dc8" style="width: 100.0%; height: 100.0%;">plaza</div>`)[0];
+                popup_86619f416d1af907068587d9c7f61111.setContent(html_a54c1ef6c030d68a8fc11fcb27c65dc8);
+            
+        
+
+        marker_af004ea35ce3ec821cfcdbe76bc52bc6.bindPopup(popup_86619f416d1af907068587d9c7f61111)
+        ;
+
+        
+    
+    
+            marker_af004ea35ce3ec821cfcdbe76bc52bc6.bindTooltip(
+                `<div>
+                     plaza
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var layer_control_00a97308164f8986c3dd330c902e6c69_layers = {
+                base_layers : {
+                    "openstreetmap" : tile_layer_cb34265239aba04556b62b5efd01ecf2,
+                    "Sat\u00e9lite Esri" : tile_layer_66f34ed04d54fd6536945cd6c3377b26,
+                },
+                overlays :  {
+                },
+            };
+            let layer_control_00a97308164f8986c3dd330c902e6c69 = L.control.layers(
+                layer_control_00a97308164f8986c3dd330c902e6c69_layers.base_layers,
+                layer_control_00a97308164f8986c3dd330c902e6c69_layers.overlays,
+                {
+  "position": "topright",
+  "collapsed": true,
+  "autoZIndex": true,
+}
+            ).addTo(map_e5b882cf8cc2fe8d39655b001487bc34);
+
+        
+</script>
+</html>
