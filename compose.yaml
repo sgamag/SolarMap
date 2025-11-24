@@ -38,4 +38,4 @@ services:
     volumes:
       - .:/app
     working_dir: /app/src
-    command: python ver_db.py
+    command: bash -lc "mkdir -p data/BaseDeDatos && ln -sf /app/src/BaseDeDatos/era5_madrid.db data/BaseDeDatos/era5_madrid.db && python ver_db.py"
