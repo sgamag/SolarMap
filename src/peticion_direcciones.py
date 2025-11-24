@@ -22,7 +22,7 @@ def geocode_osm(direccion: str):
 
     lat = float(data[0]["lat"])
     lon = float(data[0]["lon"])
-    print(f"📍 Dirección: {data[0]['display_name']}")
+    print(f" Dirección: {data[0]['display_name']}")
     print(f"   → Latitud: {lat}")
     print(f"   → Longitud: {lon}")
     return lat, lon

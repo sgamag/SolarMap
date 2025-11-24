@@ -17,7 +17,7 @@
             <meta name="viewport" content="width=device-width,
                 initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
             <style>
-                #map_e5b882cf8cc2fe8d39655b001487bc34 {
+                #map_2fa0277c77888a825990b9ed8aeb3771 {
                     position: relative;
                     width: 100.0%;
                     height: 100.0%;
@@ -54,16 +54,16 @@
 <body>
     
     
-            <div class="folium-map" id="map_e5b882cf8cc2fe8d39655b001487bc34" ></div>
+            <div class="folium-map" id="map_2fa0277c77888a825990b9ed8aeb3771" ></div>
         
 </body>
 <script>
     
     
-            var map_e5b882cf8cc2fe8d39655b001487bc34 = L.map(
-                "map_e5b882cf8cc2fe8d39655b001487bc34",
+            var map_2fa0277c77888a825990b9ed8aeb3771 = L.map(
+                "map_2fa0277c77888a825990b9ed8aeb3771",
                 {
-                    center: [40.3743845, -3.9268271],
+                    center: [40.3197239, -3.7829043],
                     crs: L.CRS.EPSG3857,
                     ...{
   "zoom": 32,
@@ -78,7 +78,7 @@
 
         
     
-            var tile_layer_cb34265239aba04556b62b5efd01ecf2 = L.tileLayer(
+            var tile_layer_e361075295d59db5325b5182639abb55 = L.tileLayer(
                 "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
                 {
   "minZoom": 0,
@@ -95,17 +95,17 @@
             );
         
     
-            tile_layer_cb34265239aba04556b62b5efd01ecf2.addTo(map_e5b882cf8cc2fe8d39655b001487bc34);
+            tile_layer_e361075295d59db5325b5182639abb55.addTo(map_2fa0277c77888a825990b9ed8aeb3771);
         
     
-            var tile_layer_66f34ed04d54fd6536945cd6c3377b26 = L.tileLayer(
+            var tile_layer_868e121ced68b30c2921b621f1f2a56a = L.tileLayer(
                 "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
                 {
   "minZoom": 0,
-  "maxZoom": 18,
-  "maxNativeZoom": 18,
+  "maxZoom": 22,
+  "maxNativeZoom": 19,
   "noWrap": false,
-  "attribution": "Tiles \u00a9 Esri \u2014 Source: Esri, Earthstar Geographics, Maxar, etc.",
+  "attribution": "Tiles \u00a9 Esri",
   "subdomains": "abc",
   "detectRetina": false,
   "tms": false,
@@ -115,34 +115,45 @@
             );
         
     
-            tile_layer_66f34ed04d54fd6536945cd6c3377b26.addTo(map_e5b882cf8cc2fe8d39655b001487bc34);
+            tile_layer_868e121ced68b30c2921b621f1f2a56a.addTo(map_2fa0277c77888a825990b9ed8aeb3771);
         
     
-            var marker_af004ea35ce3ec821cfcdbe76bc52bc6 = L.marker(
-                [40.3743845, -3.9268271],
+            var marker_3d6de585ff1fef483e6ec5ec4a1ce8fe = L.marker(
+                [40.3197239, -3.7829043],
                 {
 }
-            ).addTo(map_e5b882cf8cc2fe8d39655b001487bc34);
+            ).addTo(map_2fa0277c77888a825990b9ed8aeb3771);
         
     
-        var popup_86619f416d1af907068587d9c7f61111 = L.popup({
+            var icon_5b1e42138a13ec1a8bd41db3fbf477ff = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "green",
+  "iconColor": "white",
+  "icon": "cloud",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_fa7148bdadd5153bbf1f3d70bd053020 = L.popup({
   "maxWidth": "100%",
 });
 
         
             
-                var html_a54c1ef6c030d68a8fc11fcb27c65dc8 = $(`<div id="html_a54c1ef6c030d68a8fc11fcb27c65dc8" style="width: 100.0%; height: 100.0%;">plaza</div>`)[0];
-                popup_86619f416d1af907068587d9c7f61111.setContent(html_a54c1ef6c030d68a8fc11fcb27c65dc8);
+                var html_49bfb2463cd46ad8e2ab9fa5b446c4ee = $(`<div id="html_49bfb2463cd46ad8e2ab9fa5b446c4ee" style="width: 100.0%; height: 100.0%;">calle san lorenzo de el escorial 2</div>`)[0];
+                popup_fa7148bdadd5153bbf1f3d70bd053020.setContent(html_49bfb2463cd46ad8e2ab9fa5b446c4ee);
             
         
 
-        marker_af004ea35ce3ec821cfcdbe76bc52bc6.bindPopup(popup_86619f416d1af907068587d9c7f61111)
+        marker_3d6de585ff1fef483e6ec5ec4a1ce8fe.bindPopup(popup_fa7148bdadd5153bbf1f3d70bd053020)
         ;
 
         
     
     
-            marker_af004ea35ce3ec821cfcdbe76bc52bc6.bindTooltip(
+            marker_3d6de585ff1fef483e6ec5ec4a1ce8fe.bindTooltip(
                 `<div>
                      plaza
                  </div>`,
@@ -152,23 +163,26 @@
             );
         
     
-            var layer_control_00a97308164f8986c3dd330c902e6c69_layers = {
+                marker_3d6de585ff1fef483e6ec5ec4a1ce8fe.setIcon(icon_5b1e42138a13ec1a8bd41db3fbf477ff);
+            
+    
+            var layer_control_493c9cb424e0ffc4f04f14e2db7eb884_layers = {
                 base_layers : {
-                    "openstreetmap" : tile_layer_cb34265239aba04556b62b5efd01ecf2,
-                    "Sat\u00e9lite Esri" : tile_layer_66f34ed04d54fd6536945cd6c3377b26,
+                    "openstreetmap" : tile_layer_e361075295d59db5325b5182639abb55,
+                    "Sat\u00e9lite" : tile_layer_868e121ced68b30c2921b621f1f2a56a,
                 },
                 overlays :  {
                 },
             };
-            let layer_control_00a97308164f8986c3dd330c902e6c69 = L.control.layers(
-                layer_control_00a97308164f8986c3dd330c902e6c69_layers.base_layers,
-                layer_control_00a97308164f8986c3dd330c902e6c69_layers.overlays,
+            let layer_control_493c9cb424e0ffc4f04f14e2db7eb884 = L.control.layers(
+                layer_control_493c9cb424e0ffc4f04f14e2db7eb884_layers.base_layers,
+                layer_control_493c9cb424e0ffc4f04f14e2db7eb884_layers.overlays,
                 {
   "position": "topright",
   "collapsed": true,
   "autoZIndex": true,
 }
-            ).addTo(map_e5b882cf8cc2fe8d39655b001487bc34);
+            ).addTo(map_2fa0277c77888a825990b9ed8aeb3771);
 
         
 </script>
