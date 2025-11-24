@@ -1,4 +1,3 @@
-
 """
 Procesamiento avanzado de potencial solar horario (0–100).
 Este script toma un CSV por tile con:
@@ -97,7 +96,7 @@ def procesar_potencial_csv(csv_path: str, guardar_grafico: bool = False):
     df = df.dropna(subset=["valid_time"])
 
     df["t2m_C"] = pd.to_numeric(df["t2m_C"], errors="coerce")
-    df["tcc"]   = pd.to_numeric(df["tcc"], errors="coerce").clip(lower=0)
+    df["tcc"] = pd.to_numeric(df["tcc"], errors="coerce").clip(lower=0)
     df["ssrd_kWhm2"] = pd.to_numeric(df["ssrd_kWhm2"], errors="coerce").clip(lower=0)
 
     # Si la nubosidad viene en porcentaje, la convertimos a 0–1
@@ -105,7 +104,7 @@ def procesar_potencial_csv(csv_path: str, guardar_grafico: bool = False):
         df["tcc"] = df["tcc"] / 100.0
 
     # Columnas auxiliares para agrupación por mes
-    df["year"]  = df["valid_time"].dt.year
+    df["year"] = df["valid_time"].dt.year
     df["month"] = df["valid_time"].dt.month
 
     df = df.sort_values("valid_time")
@@ -150,23 +149,14 @@ def procesar_potencial_csv(csv_path: str, guardar_grafico: bool = False):
     #    - Caída: 0.4% por °C
     # =======================================================================
 
-    # Nubosidad
     df["pen_nube"] = (1 - df["tcc"]).clip(lower=0) ** ALFA_NUBES
 
-    # Temperatura
     exceso_temp = (df["t2m_C"] - TEMP_BASE).clip(lower=0)
     df["pen_temp"] = (1 - BETA_TEMP * exceso_temp).clip(lower=0)
 
 
     # =======================================================================
     #   BLOQUE 4: ÍNDICE FINAL 0–100
-    # =======================================================================
-    # Multiplica los tres factores:
-    #   - radiación normalizada
-    #   - penalización por nubes
-    #   - penalización térmica
-    #
-    # Y escala todo a 0–100.
     # =======================================================================
 
     df["potencial_0_100"] = (
@@ -194,33 +184,56 @@ def procesar_potencial_csv(csv_path: str, guardar_grafico: bool = False):
 
     print(f"CSV generado: {out_csv}")
 
-
-    # =======================================================================
-    #   BLOQUE 6: GENERACIÓN DE GRÁFICO
-    # =======================================================================
-    # Eje X --> fechas
-    # Eje Y --> valor del índice
-    # =======================================================================
-
-
-    if guardar_grafico:
-        plt.figure(figsize=(10, 4))
-        plt.plot(df_out["valid_time"], df_out["potencial_0_100"], lw=1.8, color="tabblue")
-        plt.title("Potencial solar horario (0–100)")
-        plt.xlabel("Fecha")
-        plt.ylabel("Índice")
-        plt.grid(alpha=0.3)
-        plt.tight_layout()
-
-        fig_path = csv_path.with_name(csv_path.stem + "_potencial.png")
-        plt.savefig(fig_path, dpi=140)
-
-        print(f"Gráfico generado: {fig_path}")
-
-    # Vista previa en consola
-    print(df_out.head(10))
-
     return df_out
+
+
+# =======================================================================
+#   NUEVO BLOQUE: PROCESAR POTENCIAL POR AÑOS
+# =======================================================================
+
+def procesar_potencial_por_años():
+    """
+    Pide año inicial y año final por consola,
+    recorre data/csv,
+    y procesa todos los CSV dentro de esos años.
+    """
+
+    print("=== PROCESAR POTENCIAL POR AÑOS ===")
+
+    año_inicial = int(input("Año inicial a procesar: "))
+    año_final = int(input("Año final a procesar: "))
+
+    carpeta_csv = Path("data/csv")
+
+    if not carpeta_csv.exists():
+        print("La carpeta data/csv no existe.")
+        return
+
+    archivos = sorted(carpeta_csv.rglob("*.csv"))
+
+    if not archivos:
+        print("No se encontraron CSV para procesar.")
+        return
+
+    print(f"Se han encontrado {len(archivos)} CSV. Procesando rango {año_inicial}–{año_final}.")
+
+    for archivo in archivos:
+
+        # Extraer el año desde la carpeta padre (tile_xx_xx/AÑO/)
+        try:
+            año = int(archivo.parent.name)
+        except:
+            continue
+
+        # Filtrar por rango seleccionado
+        if año < año_inicial or año > año_final:
+            continue
+
+        # Saltar archivos ya procesados
+        if archivo.name.endswith("_potencial.csv"):
+            continue
+
+        procesar_potencial_csv(archivo)
 
 
 # =======================================================================
@@ -228,6 +241,4 @@ def procesar_potencial_csv(csv_path: str, guardar_grafico: bool = False):
 # =======================================================================
 
 if __name__ == "__main__":
-    import sys
-    path = sys.argv[1] if len(sys.argv) > 1 else "data/csv/tile_00_00/2000/2000_01.csv"
-    procesar_potencial_csv(path, guardar_grafico=False)
+    procesar_potencial_por_años()
