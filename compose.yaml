@@ -1,16 +1,14 @@
 services:
-  # 1) Docker base de datos
   db_config:
     build:
       context: .
       dockerfile: docker/Dockerfile
     container_name: solarmap_db_config
     volumes:
-      - .:/app        # monta tu repo dentro del contenedor
+      - .:/app
     working_dir: /app/src
-    command: ["python", "db_config.py"]
+    command: python db_config.py
 
-  # 2) Docker descarga (Copernicus + PNOA)
   descarga:
     build:
       context: .
@@ -18,10 +16,10 @@ services:
     container_name: solarmap_descarga
     volumes:
       - .:/app
+      - /Users/macbook/.cdsapirc:/root/.cdsapirc:ro
     working_dir: /app/src
-    entrypoint: ["python", "descargar_radiacion.py"]
+    command: python descargar_radiacion.py
 
-  # 3) Docker limpieza y carga
   limpieza_carga:
     build:
       context: .
@@ -30,13 +28,8 @@ services:
     volumes:
       - .:/app
     working_dir: /app/src
-    command: >
-      bash -lc "
-      python procesar_radiacion.py &&
-      python docker/db_config.py
-      "
+    command: bash -lc "python procesar_radiacion.py && python db_config.py"
 
-  # 4) Docker del mapa (de momento, leer la BD y mostrar algo por consola)
   mapa:
     build:
       context: .
@@ -45,4 +38,4 @@ services:
     volumes:
       - .:/app
     working_dir: /app/src
-    command: ["python", "ver_db.py"]
+    command: bash -lc "mkdir -p data/BaseDeDatos && ln -sf /app/src/BaseDeDatos/era5_madrid.db data/BaseDeDatos/era5_madrid.db && python ver_db.py"
