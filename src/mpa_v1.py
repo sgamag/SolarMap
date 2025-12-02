@@ -27,66 +27,201 @@ folium.TileLayer(
 folium.LayerControl().add_to(mapa)
 
 # ---------------------------------------------------
-# 📷 BOTÓN DE CAPTURA (html2canvas)
+# 📷 Script de html2canvas
 # ---------------------------------------------------
 html2canvas_script = """
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 """
 mapa.get_root().header.add_child(folium.Element(html2canvas_script))
 
-capture_button = """
+nombre_mapa = mapa.get_name()
+
+boton_captura = f"""
 <style>
-#capture-btn {
+#capture-btn {{
     position: absolute;
     top: 10px;
     left: 1225px;
     z-index: 999999;
     background: black;
+    color: white;
     padding: 8px 12px;
     border-radius: 6px;
     border: 2px solid #333;
     cursor: pointer;
     font-weight: bold;
     box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
-}
-#capture-btn:hover {
-    background: #f0f0f0;
-}
+}}
+#capture-btn:hover {{
+    background: #444;
+}}
+
+#custom-alert {{
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 9999999;
+    background: rgba(0,0,0,0.9);
+    color: white;
+    padding: 20px 25px;
+    border-radius: 10px;
+    font-size: 16px;
+    text-align: center;
+    max-width: 320px;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}}
+
+#loading-overlay {{
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(2px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999998;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}}
+
+.loading-box {{
+    background: rgba(20,20,20,0.95);
+    padding: 20px 30px;
+    border-radius: 12px;
+    text-align: center;
+    color: white;
+    font-size: 18px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.6);
+}}
+
+.loading-spinner {{
+    margin-top: 15px;
+    width: 35px;
+    height: 35px;
+    border: 5px solid #fff;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+}}
+
+@keyframes spin {{
+    from {{ transform: rotate(0deg); }}
+    to {{ transform: rotate(360deg); }}
+}}
 </style>
 
 <div id="capture-btn"> Obtener Imágen </div>
 
+<!-- Cartel de aviso -->
+<div id="custom-alert"></div>
+
+<!-- Overlay de carga (se usará al buscar) -->
+<div id="loading-overlay">
+    <div class="loading-box">
+        Procesando búsqueda...
+        <div class="loading-spinner"></div>
+    </div>
+</div>
+
 <script>
-window.addEventListener('load', function() {
+window.addEventListener('load', function() {{
     var btn = document.getElementById("capture-btn");
     if (!btn) return;
 
-    btn.onclick = function() {
-        var mapContainer = document.getElementsByClassName("folium-map")[0];
-        if (!mapContainer) {
-            alert("No se encontró el contenedor del mapa.");
-            return;
-        }
+    var map = {nombre_mapa};
 
-        html2canvas(mapContainer, {useCORS: true}).then(function(canvas) {
+    var minZoom = 19;
+    var maxZoom = 20;
+
+    window.showAlert = function(msg) {{
+        var alertBox = document.getElementById("custom-alert");
+        if (!alertBox) return;
+        alertBox.innerText = msg;
+        alertBox.style.opacity = "1";
+        setTimeout(function() {{
+            alertBox.style.opacity = "0";
+        }}, 2500);
+    }}
+
+    window.showLoading = function() {{
+        var overlay = document.getElementById("loading-overlay");
+        if (!overlay) return;
+        overlay.style.opacity = "1";
+        overlay.style.pointerEvents = "all";
+    }}
+
+    window.hideLoading = function() {{
+        var overlay = document.getElementById("loading-overlay");
+        if (!overlay) return;
+        overlay.style.opacity = "0";
+        setTimeout(function() {{
+            overlay.style.pointerEvents = "none";
+        }}, 300);
+    }}
+
+    // Captura de imagen
+    btn.onclick = function() {{
+        var currentZoom = map.getZoom();
+
+        if (currentZoom < minZoom || currentZoom > maxZoom) {{
+            window.showAlert(
+                " Zoom no válido (" + currentZoom +
+                "). Solo posible entre " + minZoom + " y " + maxZoom + "."
+            );
+            return;
+        }}
+
+        var mapContainer = document.getElementsByClassName("folium-map")[0];
+        if (!mapContainer) {{
+            window.showAlert(" No se encontró el contenedor del mapa.");
+            return;
+        }}
+
+        var toHide = document.querySelectorAll(
+            '#capture-btn, #search-container, .leaflet-control-layers-toggle, .leaflet-control-zoom, .leaflet-control-attribution, .leaflet-control-scale'
+        );
+
+        toHide.forEach(function(el) {{
+            el.style.visibility = 'hidden';
+        }});
+
+        html2canvas(mapContainer, {{useCORS: true}}).then(function(canvas) {{
+
+            toHide.forEach(function(el) {{
+                el.style.visibility = 'visible';
+            }});
+
             var link = document.createElement('a');
-            link.download = 'mapa_captura.png';
+            link.download = 'mapa_limpio.png';
             link.href = canvas.toDataURL();
             link.click();
-        });
-    };
-});
+        }}).catch(function(err) {{
+
+            toHide.forEach(function(el) {{
+                el.style.visibility = 'visible';
+            }});
+
+            console.error(err);
+            window.showAlert(" Error al capturar la imagen.");
+        }});
+    }};
+}});
 </script>
 """
-mapa.get_root().html.add_child(folium.Element(capture_button))
 
-map_js_name = mapa.get_name()
+mapa.get_root().html.add_child(folium.Element(boton_captura))
 
-search_bar = f"""
+barra_busqueda = f"""
 <style>
 #search-container {{
     position: absolute;
-    top: 10px;  /* Debajo del botón de captura */
+    top: 10px;
     left: 612px;
     z-index: 999999;
     background: white;
@@ -122,8 +257,7 @@ search_bar = f"""
 
 <script>
 window.addEventListener('load', function() {{
-    // Usamos directamente el mapa que ha creado Folium
-    var map = {map_js_name};
+    var map = {nombre_mapa};
     var searchMarker = null;
 
     var btn = document.getElementById("search-btn");
@@ -137,11 +271,19 @@ window.addEventListener('load', function() {{
     btn.addEventListener('click', function() {{
         var query = input.value;
         if (!query) {{
-            alert("Introduce una dirección.");
+            if (window.showAlert) {{
+                window.showAlert("Introduce una dirección.");
+            }} else {{
+                alert("Introduce una dirección.");
+            }}
             return;
         }}
 
         var url = "http://localhost:8000/geocode?direccion=" + encodeURIComponent(query);
+
+        if (window.showLoading) {{
+            window.showLoading();
+        }}
 
         fetch(url)
         .then(function(response) {{
@@ -151,6 +293,10 @@ window.addEventListener('load', function() {{
             return response.json();
         }})
         .then(function(data) {{
+            if (window.hideLoading) {{
+                window.hideLoading();
+            }}
+
             var lat = data.lat;
             var lon = data.lon;
             var nombre = data.display_name || query;
@@ -160,20 +306,30 @@ window.addEventListener('load', function() {{
             }}
 
             searchMarker = L.marker([lat, lon]).addTo(map).bindPopup(nombre).openPopup();
-            map.setView([lat, lon], 19);
+
+            // MOVIMIENTO SUAVE
+            map.flyTo([lat, lon], 18, {{
+                animate: true,
+                duration: 1.5
+            }});
         }})
         .catch(function(error) {{
             console.error(error);
-            alert("Error al buscar la dirección.");
+            if (window.hideLoading) {{
+                window.hideLoading();
+            }}
+            if (window.showAlert) {{
+                window.showAlert("Error al buscar la dirección");
+            }} else {{
+                alert("Error al buscar la dirección.");
+            }}
         }});
     }});
 }});
 </script>
 """
 
-mapa.get_root().html.add_child(folium.Element(search_bar))
-
-# ---------------------------------------------------
+mapa.get_root().html.add_child(folium.Element(barra_busqueda))
 
 mapa.save("mapa.html")
-print("Mapa guardado como 'mapa.html'. Ábrelo en el navegador.")
+print("Mapa guardado como 'mapa.html'")
