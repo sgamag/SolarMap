@@ -4,11 +4,11 @@ import pandas as pd
 from pathlib import Path
 
 # ---------- Ruta de la base de datos ----------
-DB_PATH = Path("data/era5_madrid.db")
+DB_PATH = Path("BaseDeDatos/era5_madrid.db")
 
 if not DB_PATH.exists():
     print(f"⚠️ No se encontró la base de datos en {DB_PATH.resolve()}")
-    print("Ejecuta primero 'python src/db_setup.py' para crearla.")
+    print("Ejecuta primero 'python src/db_config.py' para crearla.")
 else:
     print(f"Conectando a la base de datos: {DB_PATH.resolve()}")
 
