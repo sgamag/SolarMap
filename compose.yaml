@@ -13,12 +13,23 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    container_name: solarmap_descarga
     volumes:
-      - .:/app
-      - /Users/macbook/.cdsapirc:/root/.cdsapirc:ro
-    working_dir: /app/src
-    command: python descargar_radiacion.py
+      - ./.cdsapirc:/root/.cdsapirc:ro
+      - ./src:/app/src
+      - ./data:/app/data
+    entrypoint: ["python", "-u", "/app/src/descargar_radiacion.py"]
+
+
+  #descarga:
+   # build:
+    #  context: .
+     # dockerfile: docker/Dockerfile
+    #container_name: solarmap_descarga
+    #volumes:
+     # - .:/app
+      #- /Users/macbook/.cdsapirc:/root/.cdsapirc:ro
+    #working_dir: /app/src
+    #command: python descargar_radiacion.py
 
   limpieza_carga:
     build:
