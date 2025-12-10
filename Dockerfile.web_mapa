@@ -1,0 +1,20 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+RUN apt-get update \
+    && apt-get install -y nginx \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY src/ /app/src
+COPY nginx.conf /etc/nginx/nginx.conf
+
+WORKDIR /app/src
+
+EXPOSE 80
+
+CMD ["sh", "-c", "python mpa_v1.py && nginx -g 'daemon off;'"]

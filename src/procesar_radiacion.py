@@ -1,243 +1,196 @@
 """
-Procesamiento avanzado de potencial solar horario (0–100).
-Este script toma un CSV por tile con:
-- ssrd_kWhm2   (radiación solar acumulada en kWh/m²)
-- t2m_C        (temperatura en 2 metros)
-- tcc          (nubosidad 0–1)
-- valid_time   (fecha-hora)
+Procesamiento físico del potencial solar horario (0–1).
 
-Y genera un índice robusto de potencial solar para paneles fotovoltaicos,
-combinando normalización dinámica, penalización por nubosidad y efectos térmicos.
+Este script toma un CSV por tile con columnas:
+- ssrd_kWhm2   Radiación solar acumulada (kWh/m² por hora)
+- t2m_C        Temperatura del aire a 2m
+- tcc          Nubosidad (0–1 o 0–100)
+- valid_time   Fecha-hora
+
+Y genera un índice 0–1 realista basado en:
+- Energía solar instantánea (normalización física)
+- Penalización por nubosidad
+- Penalización por temperatura
+- Penalización mensual por horas de sol
 """
 
 import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-
 # =======================================================================
-#   PARÁMETROS DEL MODELO FOTOVOLTAICO
-# =======================================================================
-# Estos parámetros NO son arbitrarios: provienen de modelos reales
-# de irradiancia, física de paneles solares y literatura energética.
-# Se definen aquí arriba para facilitar su modificación.
+# PARÁMETROS FÍSICOS DEL MODELO
 # =======================================================================
 
-# Percentil dinámico para normalizar radiación según mes.
-# Motivo: la dispersión de la radiación varía mucho por estación.
-# - Invierno: radiación baja y homogénea → percentil más bajo (P90–P92)
-# - Verano: radiación muy variable → percentil más alto (P95–P97)
-
-PERC_POR_MES = {
-    1: 0.90,  2: 0.92,  3: 0.94,
-    4: 0.95,  5: 0.96,  6: 0.97,
-    7: 0.97,  8: 0.96,  9: 0.95,
-    10: 0.94, 11: 0.93, 12: 0.92,
+# Horas reales de sol por mes (Madrid)
+HORAS_SOL_POR_MES = {
+    1: 9.3,  2: 10.0, 3: 11.9, 4: 13.3,
+    5: 14.5, 6: 16.8, 7: 15.7, 8: 15.1,
+    9: 13.0, 10: 12.4, 11: 10.8, 12: 9.0
 }
 
-# límite superior para radiación normalizada (evita que un valor extremo distorsione)
-CAP_GHI = 1.20
-
-# Exponente para penalización por nubosidad (curva no lineal)
-ALFA_NUBES = 0.90
-
-# Temperatura base de referencia
-TEMP_BASE = 25.0
-
-# Coeficiente térmico real de paneles fotovoltaicos (~0.4% pérdida por °C)
-BETA_TEMP = 0.004
+ALFA_NUBES   = 0.90      # Penalización suave por nubosidad
+TEMP_BASE    = 25.0      # Temperatura a partir de la cual baja el rendimiento
+BETA_TEMP    = 0.004     # 0.4% de pérdida por grado >25°C
+REF_RADIACION = 1.0       # 1 kWh/m²/h ≈ hora muy buena física
 
 
 # =======================================================================
-#   FUNCIÓN PRINCIPAL DE PROCESAMIENTO
-# =======================================================================
-# Toma el CSV original y genera:
-# - CSV con columnas procesadas
-# - potencial_0_100 basado en radiación, nubes y temperatura
-# - opcionalmente, gráfico del potencial horario
-#
-# Este es el módulo que realmente usará pipeline tras la conversión GRIB→CSV.
+# PROCESAR CSV INDIVIDUAL
 # =======================================================================
 
 def procesar_potencial_csv(csv_path: str, guardar_grafico: bool = False):
-    """
-    Procesa un CSV con ssrd, t2m y tcc para generar un índice horario de potencial solar.
-    """
 
-    # -------------------------------
-    # Validación de entrada
-    # -------------------------------
     csv_path = Path(csv_path)
     if not csv_path.exists():
-        raise FileNotFoundError(f"No existe el archivo: {csv_path}")
+        raise FileNotFoundError(csv_path)
 
-    print(f"Procesando archivo: {csv_path}")
+    print("Procesando:", csv_path)
     df = pd.read_csv(csv_path)
 
-    # Normalizamos nombres de columnas
     df.columns = [c.strip() for c in df.columns]
 
-    # Comprobación estricta de columnas obligatorias
-    columnas_esperadas = {"valid_time", "ssrd_kWhm2", "t2m_C", "tcc"}
-    faltan = columnas_esperadas - set(df.columns)
-    if faltan:
-        raise ValueError(f"Faltan columnas obligatorias: {faltan}")
+    requeridas = {"valid_time", "ssrd_kWhm2", "t2m_C", "tcc"}
+    if not requeridas.issubset(df.columns):
+        raise ValueError("CSV incompleto:", csv_path)
 
-
-    # =======================================================================
-    #   BLOQUE 1: LIMPIEZA Y CONVERSIÓN DE TIPOS
-    # =======================================================================
-    # - Se ajustan tipos de datos.
-    # - Se corrige nubosidad 0–100.
-    # - Se eliminan fechas inválidas.
-    # =======================================================================
-
-    df["valid_time"] = pd.to_datetime(df["valid_time"], errors="coerce", utc=False)
+    # ------------------- LIMPIEZA -------------------
+    df["valid_time"] = pd.to_datetime(df["valid_time"], errors="coerce")
     df = df.dropna(subset=["valid_time"])
 
-    df["t2m_C"] = pd.to_numeric(df["t2m_C"], errors="coerce")
-    df["tcc"] = pd.to_numeric(df["tcc"], errors="coerce").clip(lower=0)
     df["ssrd_kWhm2"] = pd.to_numeric(df["ssrd_kWhm2"], errors="coerce").clip(lower=0)
+    df["t2m_C"]      = pd.to_numeric(df["t2m_C"], errors="coerce")
+    df["tcc"]        = pd.to_numeric(df["tcc"], errors="coerce").clip(0, 1)
 
-    # Si la nubosidad viene en porcentaje, la convertimos a 0–1
-    if df["tcc"].max() > 1:
-        df["tcc"] = df["tcc"] / 100.0
-
-    # Columnas auxiliares para agrupación por mes
-    df["year"] = df["valid_time"].dt.year
     df["month"] = df["valid_time"].dt.month
+    df = df.sort_values("valid_time").reset_index(drop=True)
 
-    df = df.sort_values("valid_time")
+    # ============================================================
+    # 1. Radiación normalizada (física, no estadística)
+    # ============================================================
 
+    # 1 kWh/m²/h representa una hora "muy buena"
+    df["rad_norm"] = (df["ssrd_kWhm2"] / REF_RADIACION).clip(0, 1)
 
-    # =======================================================================
-    #   BLOQUE 2: NORMALIZACIÓN DINÁMICA DE LA RADIACIÓN SOLAR
-    # =======================================================================
-    # - Se calcula un percentil mensual adaptativo (P90–P97 según el mes).
-    # - Esto hace que el índice final sea robusto a estaciones diferentes
-    #   y evita que un mes de invierno tenga valores artificialmente bajos
-    #   respecto a uno de verano.
-    # =======================================================================
-
-    df["percentil_mes"] = df["month"].map(PERC_POR_MES)
-
-    pXX = (
-        df.groupby(["year", "month"])
-          .apply(lambda g: g["ssrd_kWhm2"].quantile(g["percentil_mes"].iloc[0]))
-          .rename("pXX_mes")
-    )
-
-    df = df.merge(pXX, on=["year", "month"], how="left")
-
-    # Previene divisiones por cero
-    mediana_global = df["ssrd_kWhm2"].median()
-    df["pXX_mes"] = df["pXX_mes"].replace(0, mediana_global if mediana_global > 0 else 1e-6)
-
-    # Radiación normalizada con límite superior
-    df["ghi_norm"] = (df["ssrd_kWhm2"] / df["pXX_mes"]).clip(upper=CAP_GHI)
-
-
-    # =======================================================================
-    #   BLOQUE 3: COMPONENTES DEL ÍNDICE (NUBES + TEMPERATURA)
-    # =======================================================================
-    # 1) Penalización por nubosidad
-    #    - Curva no lineal: (1 - tcc)^ALFA
-    #    - Más realista que una penalización lineal pura
-    #
-    # 2) Penalización térmica
-    #    - Los paneles pierden rendimiento si t2m supera 25°C
-    #    - Caída: 0.4% por °C
-    # =======================================================================
+    # ============================================================
+    # 2. Penalización por nubosidad
+    # ============================================================
 
     df["pen_nube"] = (1 - df["tcc"]).clip(lower=0) ** ALFA_NUBES
 
-    exceso_temp = (df["t2m_C"] - TEMP_BASE).clip(lower=0)
-    df["pen_temp"] = (1 - BETA_TEMP * exceso_temp).clip(lower=0)
+    # ============================================================
+    # 3. Penalización térmica (solo si t2m > 25°C)
+    # ============================================================
 
+    exceso = (df["t2m_C"] - TEMP_BASE).clip(lower=0)
+    df["pen_temp"] = (1 - BETA_TEMP * exceso).clip(lower=0)
 
-    # =======================================================================
-    #   BLOQUE 4: ÍNDICE FINAL 0–100
-    # =======================================================================
+    # ============================================================
+    # 4. Penalización por horas de sol del mes
+    # ============================================================
 
-    df["potencial_0_100"] = (
-        100 * df["ghi_norm"] * df["pen_nube"] * df["pen_temp"]
-    ).clip(0, 100)
+    horas_max = max(HORAS_SOL_POR_MES.values())
+    df["horas_norm"] = df["month"].map(lambda m: HORAS_SOL_POR_MES[int(m)] / horas_max)
+    df["horas_norm"] = df["horas_norm"].clip(0, 1)
 
-    # Redondeo final
-    for col in ["ssrd_kWhm2", "t2m_C", "tcc", "potencial_0_100"]:
-        df[col] = df[col].round(2)
+    # ============================================================
+    # 5. Potencial final físico
+    # ============================================================
 
+    df["potencial_0_1"] = (
+        df["rad_norm"]
+        * df["pen_nube"]
+        * df["pen_temp"]
+        * df["horas_norm"]
+    ).clip(0, 1)
 
-    # =======================================================================
-    #   BLOQUE 5: SELECCIÓN Y EXPORTACIÓN DE RESULTADOS
-    # =======================================================================
+    # Redondeos
+    for col in ["rad_norm", "pen_nube", "pen_temp", "horas_norm", "potencial_0_1"]:
+        df[col] = df[col].round(4)
+
+    # ============================================================
+    # EXPORTAR RESULTADOS
+    # ============================================================
+
+    out_folder = csv_path.parent / "potencial"
+    out_folder.mkdir(exist_ok=True)
+
+    out_csv = out_folder / f"{csv_path.stem}_potencial.csv"
 
     columnas_salida = [
-        c for c in ["valid_time", "tile_id", "latitude", "longitude"] if c in df.columns
+        "valid_time",
+        *[c for c in ["tile_id", "latitude", "longitude"] if c in df.columns],
+        "ssrd_kWhm2", "t2m_C", "tcc",
+        "rad_norm", "pen_nube", "pen_temp",
+        "horas_norm",
+        "potencial_0_1",
     ]
-    columnas_salida += ["ssrd_kWhm2", "t2m_C", "tcc", "potencial_0_100"]
 
-    df_out = df[columnas_salida].copy()
+    df[columnas_salida].to_csv(out_csv, index=False)
+    print("CSV generado:", out_csv)
 
-    out_csv = csv_path.with_name(csv_path.stem + "_potencial.csv")
-    df_out.to_csv(out_csv, index=False)
+    # ============================================================
+    # GRÁFICO
+    # ============================================================
 
-    print(f"CSV generado: {out_csv}")
+    if guardar_grafico:
+        try:
+            plt.figure(figsize=(10, 4))
+            plt.plot(df["valid_time"], df["potencial_0_1"], lw=1.5)
+            plt.xlabel("Fecha")
+            plt.ylabel("Potencial (0–1)")
+            plt.title(f"Potencial horario - {csv_path.stem}")
+            plt.grid(alpha=0.3)
+            plt.tight_layout()
+            png_path = out_csv.with_suffix(".png")
+            plt.savefig(png_path, dpi=140)
+            plt.close()
+            print("Gráfico generado:", png_path)
+        except Exception as e:
+            print("No se pudo generar gráfico:", e)
 
-    return df_out
+    return df
 
 
 # =======================================================================
-#   NUEVO BLOQUE: PROCESAR POTENCIAL POR AÑOS
+# PROCESAR POR AÑOS COMPLETOS
 # =======================================================================
 
 def procesar_potencial_por_años():
     """
-    Pide año inicial y año final por consola,
-    recorre data/csv,
-    y procesa todos los CSV dentro de esos años.
+    Procesa todos los CSV limpios dentro de src/data/csv/tile_xx_xx/AÑO/
+    y genera los archivos *_potencial.csv
     """
-
     print("=== PROCESAR POTENCIAL POR AÑOS ===")
 
-    año_inicial = int(input("Año inicial a procesar: "))
-    año_final = int(input("Año final a procesar: "))
+    ai = int(input("Año inicial: "))
+    af = int(input("Año final: "))
 
-    carpeta_csv = Path("data/csv")
-
-    if not carpeta_csv.exists():
-        print("La carpeta data/csv no existe.")
+    carpeta = Path("src/data/csv")
+    if not carpeta.exists():
+        print("No existe la carpeta src/data/csv.")
         return
 
-    archivos = sorted(carpeta_csv.rglob("*.csv"))
-
-    if not archivos:
-        print("No se encontraron CSV para procesar.")
-        return
-
-    print(f"Se han encontrado {len(archivos)} CSV. Procesando rango {año_inicial}–{año_final}.")
+    archivos = sorted(carpeta.rglob("*.csv"))
+    print(f"{len(archivos)} archivos encontrados.")
 
     for archivo in archivos:
-
-        # Extraer el año desde la carpeta padre (tile_xx_xx/AÑO/)
-        try:
-            año = int(archivo.parent.name)
-        except:
-            continue
-
-        # Filtrar por rango seleccionado
-        if año < año_inicial or año > año_final:
-            continue
-
-        # Saltar archivos ya procesados
+        # ignorar los ya procesados
         if archivo.name.endswith("_potencial.csv"):
             continue
 
-        procesar_potencial_csv(archivo)
+        # extraer año desde .../tile_00_00/2000/archivo.csv
+        try:
+            year = int(archivo.parent.name)
+        except ValueError:
+            continue
+
+        if ai <= year <= af:
+            procesar_potencial_csv(archivo)
 
 
 # =======================================================================
-#   EJECUCIÓN DIRECTA DESDE TERMINAL
+# EJECUCIÓN DIRECTA
 # =======================================================================
 
 if __name__ == "__main__":

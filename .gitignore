@@ -44,3 +44,4 @@ previews/
 *.jpg
 
 # 
+.cdsapirc

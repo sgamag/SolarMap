@@ -13,12 +13,23 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    container_name: solarmap_descarga
     volumes:
-      - .:/app
-      - /Users/macbook/.cdsapirc:/root/.cdsapirc:ro
-    working_dir: /app/src
-    command: python descargar_radiacion.py
+      - ./.cdsapirc:/root/.cdsapirc:ro
+      - ./src:/app/src
+      - ./data:/app/data
+    entrypoint: ["python", "-u", "/app/src/descargar_radiacion.py"]
+
+
+  #descarga:
+   # build:
+    #  context: .
+     # dockerfile: docker/Dockerfile
+    #container_name: solarmap_descarga
+    #volumes:
+     # - .:/app
+      #- /Users/macbook/.cdsapirc:/root/.cdsapirc:ro
+    #working_dir: /app/src
+    #command: python descargar_radiacion.py
 
   limpieza_carga:
     build:
@@ -30,12 +41,19 @@ services:
     working_dir: /app/src
     command: bash -lc "python procesar_radiacion.py && python db_config.py"
 
-  mapa:
+  api_mapa:
     build:
       context: .
-      dockerfile: docker/Dockerfile
-    container_name: solarmap_mapa
-    volumes:
-      - .:/app
+      dockerfile: Dockerfile.api_mapa
+    ports:
+      - "8000:8000"
     working_dir: /app/src
-    command: bash -lc "mkdir -p data/BaseDeDatos && ln -sf /app/src/BaseDeDatos/era5_madrid.db data/BaseDeDatos/era5_madrid.db && python ver_db.py"
+
+  web_mapa:
+    build:
+      context: .
+      dockerfile: Dockerfile.web_mapa
+    ports:
+      - "8080:80"
+    depends_on:
+      - api_mapa
