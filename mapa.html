@@ -19,7 +19,7 @@
             <meta name="viewport" content="width=device-width,
                 initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
             <style>
-                #map_05e57587e77510586f83f825e5ed1e93 {
+                #map_a2d9d13827649263ad031ae0f92034c4 {
                     position: relative;
                     width: 100.0%;
                     height: 100.0%;
@@ -72,7 +72,7 @@
     box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
 }
 #capture-btn:hover {
-    background: #444;
+    filter: brightness(1.1);
 }
 
 #custom-alert {
@@ -153,8 +153,9 @@ window.addEventListener('load', function() {
     var btn = document.getElementById("capture-btn");
     if (!btn) return;
 
-    var map = map_05e57587e77510586f83f825e5ed1e93;
+    var map = map_a2d9d13827649263ad031ae0f92034c4;
 
+    // Rango de zoom permitido
     var minZoom = 19;
     var maxZoom = 20;
 
@@ -185,6 +186,29 @@ window.addEventListener('load', function() {
             overlay.style.pointerEvents = "none";
         }, 300);
     }
+
+    // 🔥 Cambiar color del botón según el zoom
+    function updateCaptureButtonColor() {
+        var z = map.getZoom();
+        if (z < minZoom) {
+            // Zoom demasiado bajo -> rojo
+            btn.style.backgroundColor = "#7f1d1d";
+            btn.style.borderColor = "#fecaca";
+        } else if (z > maxZoom) {
+            // Zoom demasiado alto -> naranja
+            btn.style.backgroundColor = "#92400e";
+            btn.style.borderColor = "#fed7aa";
+        } else {
+            // Zoom dentro del rango -> verde
+            btn.style.backgroundColor = "#14532d";
+            btn.style.borderColor = "#4ade80";
+        }
+    }
+
+    // Actualizar color cuando cambie el zoom
+    map.on('zoomend', updateCaptureButtonColor);
+    // Y también al cargar la página
+    updateCaptureButtonColor();
 
     // Captura de imagen (SIN loading)
     btn.onclick = function() {
@@ -274,7 +298,7 @@ window.addEventListener('load', function() {
 
 <script>
 window.addEventListener('load', function() {
-    var map = map_05e57587e77510586f83f825e5ed1e93;
+    var map = map_a2d9d13827649263ad031ae0f92034c4;
     var searchMarker = null;
 
     var btn = document.getElementById("search-btn");
@@ -345,14 +369,14 @@ window.addEventListener('load', function() {
 });
 </script>
     
-            <div class="folium-map" id="map_05e57587e77510586f83f825e5ed1e93" ></div>
+            <div class="folium-map" id="map_a2d9d13827649263ad031ae0f92034c4" ></div>
         
 </body>
 <script>
     
     
-            var map_05e57587e77510586f83f825e5ed1e93 = L.map(
-                "map_05e57587e77510586f83f825e5ed1e93",
+            var map_a2d9d13827649263ad031ae0f92034c4 = L.map(
+                "map_a2d9d13827649263ad031ae0f92034c4",
                 {
                     center: [40.3727017, -3.9185823],
                     crs: L.CRS.EPSG3857,
@@ -369,7 +393,7 @@ window.addEventListener('load', function() {
 
         
     
-            var tile_layer_7db44285caa78fec714074831f189e9f = L.tileLayer(
+            var tile_layer_e4a4fc1220a4b575e46b5c81b022d3e4 = L.tileLayer(
                 "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
                 {
   "minZoom": 0,
@@ -386,10 +410,10 @@ window.addEventListener('load', function() {
             );
         
     
-            tile_layer_7db44285caa78fec714074831f189e9f.addTo(map_05e57587e77510586f83f825e5ed1e93);
+            tile_layer_e4a4fc1220a4b575e46b5c81b022d3e4.addTo(map_a2d9d13827649263ad031ae0f92034c4);
         
     
-            var tile_layer_0d2eff7d03f797a589e52f492e980e42 = L.tileLayer(
+            var tile_layer_4906f96707a24145fe5e629f7c278a92 = L.tileLayer(
                 "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
                 {
   "minZoom": 0,
@@ -406,26 +430,26 @@ window.addEventListener('load', function() {
             );
         
     
-            tile_layer_0d2eff7d03f797a589e52f492e980e42.addTo(map_05e57587e77510586f83f825e5ed1e93);
+            tile_layer_4906f96707a24145fe5e629f7c278a92.addTo(map_a2d9d13827649263ad031ae0f92034c4);
         
     
-            var layer_control_980f188e0c40ec5d8674bba012622d62_layers = {
+            var layer_control_75335334484fbbef662b90841183cc07_layers = {
                 base_layers : {
-                    "openstreetmap" : tile_layer_7db44285caa78fec714074831f189e9f,
-                    "Sat\u00e9lite" : tile_layer_0d2eff7d03f797a589e52f492e980e42,
+                    "openstreetmap" : tile_layer_e4a4fc1220a4b575e46b5c81b022d3e4,
+                    "Sat\u00e9lite" : tile_layer_4906f96707a24145fe5e629f7c278a92,
                 },
                 overlays :  {
                 },
             };
-            let layer_control_980f188e0c40ec5d8674bba012622d62 = L.control.layers(
-                layer_control_980f188e0c40ec5d8674bba012622d62_layers.base_layers,
-                layer_control_980f188e0c40ec5d8674bba012622d62_layers.overlays,
+            let layer_control_75335334484fbbef662b90841183cc07 = L.control.layers(
+                layer_control_75335334484fbbef662b90841183cc07_layers.base_layers,
+                layer_control_75335334484fbbef662b90841183cc07_layers.overlays,
                 {
   "position": "topright",
   "collapsed": true,
   "autoZIndex": true,
 }
-            ).addTo(map_05e57587e77510586f83f825e5ed1e93);
+            ).addTo(map_a2d9d13827649263ad031ae0f92034c4);
 
         
 </script>
