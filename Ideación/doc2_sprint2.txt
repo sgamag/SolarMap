@@ -1,44 +1,22 @@
-DESCARGA Y PREPARACIÓN DE ORTOFOTOS PNOA 
+DESCARGA DE DATOS Y PRIMERAS ESTRUCTURAS PERSISTENTES
+Durante este sprint se implementó la capacidad de descarga de datos reales. 
+Se desarrollaron scripts específicos para la obtención de datos de radiación 
+y de imágenes geográficas, destacando descargar_radiacion.py y 
+peticion_imagen_PNOA.py. En esta fase se decidió utilizar PNOA para las 
+imágenes debido a las limitaciones de Copernicus en el nivel de zoom necesario 
+para detectar tejados.
 
-objetivo: obtener ortofotos georreferenciadas de estudio con suficiente
-detalle para distinguir tejados.
+Se completó la descarga de todos los datos correspondientes a Villaviciosa, 
+garantizando la cobertura total del área de estudio. Esto implicó gestionar 
+volúmenes elevados de datos y organizar su almacenamiento en el sistema de archivos.
 
-pasos realizados:
-1 selección de zona y resolución
-Se definió un punto central, un tamaño de recorte en metros y una resolución 
-en metros por píxel.
+Paralelamente, se inició el diseño de la base de datos. El script db_config.py 
+se utilizó para definir la estructura inicial, crear tablas y preparar el entorno 
+para la futura carga de datos procesados.
 
-2 lectura de capacidades del WMS
-Se consultó GetCapabilities del servicio PNOA para confrimar la capa de ortofoto
-y detectar si hay dimensión temporal TIME
+La interfaz continuó evolucionando para adaptarse a la disponibilidad de datos 
+reales, aunque todavía sin integración completa con el backend.
 
-3 petición de imagen
-Se construyó el BBOX en EPSG:4326 y se calculó el tamaño en píxeles. Se lanzó un 
-GetMap y se guardó la imagen.
-
-4 georreferenciación a GeoTIFF
-Se guardó la imagen como GeoTIFF incorporando el CRS y el "transform" espacial
-para uqe se coloque correctamente en SIG
-
-5 detección de fecha
-Se intentó leer al fecha de vuelo con GetFeatureInfo en el centor del recorte. 
-Si la fecha no aparece, se guarda el valor TIME usado.
-
-parámetros principales
-CRS: EPSG:4326
-tamaño del recorte: CUT_WIDTH_M x CUT_HEIGHT_M metros
-resolución: M_PER_PX m/píxel
-capa: LAYER (ej. OI.OrthoimageCoverage)
-formato: image/jpeg para GetMap y GeoTIFF para el archivo final
-
-salidas
-JPG de vista rápida en la carpeta imágenes
-GeoTIFF georreferenciado en la misma carpeta
-
-se obtiene al menos una ortofoto GeoTIFF de la zona de prueba que
-permite distinguir tejados y queda documentado el proceso con 
-parámetros y fecha.
-
-
-ortofotos: fotos aéreas corregidas para que puedas medir y alinear 
-con mapas (sin inclinaciones).
+RESULTADO TÉCNICO
+Sistema capaz de descargar datos reales de forma controlada, con una base 
+de datos inicial definida y lista para ser poblada.

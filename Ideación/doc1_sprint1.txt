@@ -1,30 +1,19 @@
-CONEXIÓN Y PREPARACIÓN DE FUENTES COPERNICUS
+ARQUITECTURA Y BASE TÉCNICA
+En este sprint se establecieron los cimientos técnicos del proyecto. 
+Se configuró el acceso a servicios externos mediante autenticación por credenciales, 
+gestionando correctamente los headers necesarios para realizar peticiones a la API 
+de Copernicus. Esta lógica queda reflejada en los primeros módulos de conexión y 
+control de acceso.
 
-objetivo: dejar lista la autentificación y las pruebas básicas de consulta
-en Copernicus para datos tabulares.
+Se definieron las URLs de acceso a los servicios de Copernicus y se realizaron 
+pruebas de conectividad para validar la disponibilidad de datos y los formatos de 
+respuesta. Esta fase permitió identificar limitaciones técnicas y requisitos de la 
+API antes de escalar el sistema.
 
-pasos realizados:
-1 validación de credenciales
-Se creó login.py para obtener y cachear el token. Se verificó con testlogin.py
+A nivel de frontend, se diseñó una primera estructura de interfaz, todavía no 
+conectada al backend, cuyo objetivo era definir la interacción básica con el usuario 
+y anticipar las necesidades de visualización del mapa y los resultados.
 
-2 URL de servicio
-Se documentó el endpoint de token y los endpoints de STAC para búsquedas
-
-3 diseño de interfaz
-Se definió el flujo básico de peticiones y cómo se mostrarán resultados 
-(miniaturas y CSV)
-
-4 recopilación de datos de referencia
-Se revisó la documentación de ERA5 y STAC y se dejaron scripts de prueba para 
-confirmar acceso
-
-salidas
-token obtenido y cacheado en token_cdse.json
-script ver_imagen_stac.py validando búsquedas y miniaturas
-lista de endpoints y parámetros clave
-
-se puede autenticar, consultar y descargar datos de Copernicus para tablas 
-sin errores
-
-STAC: catálogo estándar en la web para buscar imágenes satelitales. De las un 
-polígono y fechas y te devuelve la lista de escenas
+RESULTADO TÉCNICO
+Sistema preparado para consumir APIs externas, con una estructura inicial clara y 
+validada para continuar el desarrollo.
