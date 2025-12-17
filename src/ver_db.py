@@ -20,7 +20,7 @@ from pathlib import Path
 # RUTA DE LA BASE DE DATOS
 # ============================================================
 
-DB_PATH = Path("BaseDeDatos/era5_madrid.db")
+DB_PATH = Path("src/BaseDeDatos/era5_madrid.db")
 
 if not DB_PATH.exists():
     print(f"No se encontró la base de datos en {DB_PATH.resolve()}")

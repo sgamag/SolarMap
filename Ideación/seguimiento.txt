@@ -22,7 +22,7 @@ Sprint 3: 12 nov - 3 dic
 
 Sprint 4: 3 dic - 16 dic
 - obtencion del potencial de cada región 
-- volcar los datos en la base de datos
+- volcar los datos en la base de datos (con variables extra)
 - botón en rojo 
 - empezar memoria
 - documentar lo que tenemos hasta ahora
@@ -33,7 +33,13 @@ Sprint 4: 3 dic - 16 dic
 
 hay que convertirlo en API.
 
-
+sprint 5: 17 dic - 7 enero
+- calculo de potencial avanzado
+- cargar los datos de 2025 hasta donde se pueda
+- que salga un mensaje hasta donde se han descargado los datos
+- automaticar la descarga
+- terminar la memoria 
+- mariadb o mysql 
 
 
 
