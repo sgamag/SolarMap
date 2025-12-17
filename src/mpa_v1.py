@@ -36,12 +36,25 @@ mapa.get_root().header.add_child(folium.Element(html2canvas_script))
 
 nombre_mapa = mapa.get_name()
 
+# ---------------------------------------------------
+# BOTÓN DE CAPTURA + ALERTA + LOADING
+# ---------------------------------------------------
 boton_captura = f"""
 <style>
+html, body {{
+    height: 100%;
+    margin: 0;
+}}
+.folium-map {{
+    width: 100%;
+    height: 100vh;
+}}
+
+/* Botón de captura: arriba derecha */
 #capture-btn {{
     position: absolute;
     top: 10px;
-    left: 1225px;
+    right: 150px;
     z-index: 999999;
     background: black;
     color: white;
@@ -56,6 +69,7 @@ boton_captura = f"""
     filter: brightness(1.1);
 }}
 
+/* Cartel de aviso centrado */
 #custom-alert {{
     position: fixed;
     top: 50%;
@@ -73,6 +87,7 @@ boton_captura = f"""
     transition: opacity 0.4s ease;
 }}
 
+/* Overlay de carga para la búsqueda */
 #loading-overlay {{
     position: fixed;
     top: 0;
@@ -114,14 +129,22 @@ boton_captura = f"""
     from {{ transform: rotate(0deg); }}
     to {{ transform: rotate(360deg); }}
 }}
+
+/* Responsive para el botón */
+@media (max-width: 768px) {{
+    #capture-btn {{
+        padding: 6px 8px;
+        font-size: 12px;
+    }}
+}}
 </style>
 
-<div id="capture-btn"> Obtener Imágen </div>
+<div id="capture-btn"> Obtener Imagen </div>
 
 <!-- Cartel de aviso -->
 <div id="custom-alert"></div>
 
-<!-- Overlay de carga -->
+<!-- Overlay de carga (se usa en la BÚSQUEDA, no en la captura) -->
 <div id="loading-overlay">
     <div class="loading-box">
         Procesando búsqueda...
@@ -136,7 +159,6 @@ window.addEventListener('load', function() {{
 
     var map = {nombre_mapa};
 
-    // Rango de zoom permitido
     var minZoom = 19;
     var maxZoom = 20;
 
@@ -151,7 +173,7 @@ window.addEventListener('load', function() {{
         }}, 2500);
     }}
 
-    // Funciones globales para el overlay de carga (USADAS EN LA BÚSQUEDA)
+    // Funciones globales de loading (se usan en la barra de búsqueda)
     window.showLoading = function() {{
         var overlay = document.getElementById("loading-overlay");
         if (!overlay) return;
@@ -172,32 +194,27 @@ window.addEventListener('load', function() {{
     function updateCaptureButtonColor() {{
         var z = map.getZoom();
         if (z < minZoom) {{
-            // Zoom demasiado bajo -> rojo
-            btn.style.backgroundColor = "#7f1d1d";
+            btn.style.backgroundColor = "#7f1d1d";  // rojo
             btn.style.borderColor = "#fecaca";
         }} else if (z > maxZoom) {{
-            // Zoom demasiado alto -> naranja
-            btn.style.backgroundColor = "#92400e";
+            btn.style.backgroundColor = "#92400e";  // naranja
             btn.style.borderColor = "#fed7aa";
         }} else {{
-            // Zoom dentro del rango -> verde
-            btn.style.backgroundColor = "#14532d";
+            btn.style.backgroundColor = "#14532d";  // verde
             btn.style.borderColor = "#4ade80";
         }}
     }}
 
-    // Actualizar color cuando cambie el zoom
     map.on('zoomend', updateCaptureButtonColor);
-    // Y también al cargar la página
     updateCaptureButtonColor();
 
-    // Captura de imagen (SIN loading)
+    // Captura de imagen (SIN overlay de carga)
     btn.onclick = function() {{
         var currentZoom = map.getZoom();
 
         if (currentZoom < minZoom || currentZoom > maxZoom) {{
             window.showAlert(
-                " Zoom no válido (" + currentZoom +
+                "Zoom no válido (" + currentZoom +
                 "). Solo permitido entre " + minZoom + " y " + maxZoom + "."
             );
             return;
@@ -205,13 +222,12 @@ window.addEventListener('load', function() {{
 
         var mapContainer = document.getElementsByClassName("folium-map")[0];
         if (!mapContainer) {{
-            window.showAlert(" No se encontró el contenedor del mapa.");
+            window.showAlert("❌ No se encontró el contenedor del mapa.");
             return;
         }}
 
         var toHide = document.querySelectorAll(
-            '#capture-btn, #search-container,
-            .leaflet-control, .leaflet-control-layers-toggle, .leaflet-control-zoom, .leaflet-control-layers leaflet-control, .leaflet-control-attribution, .leaflet-control-scale'
+            '#capture-btn, #search-container, .leaflet-control-layers-toggle, .leaflet-control-zoom, .leaflet-control-attribution, .leaflet-control-scale'
         );
 
         toHide.forEach(function(el) {{
@@ -235,7 +251,7 @@ window.addEventListener('load', function() {{
             }});
 
             console.error(err);
-            window.showAlert(" Error al capturar la imagen.");
+            window.showAlert("Error al capturar la imagen.");
         }});
     }};
 }});
@@ -244,12 +260,15 @@ window.addEventListener('load', function() {{
 
 mapa.get_root().html.add_child(folium.Element(boton_captura))
 
+# ---------------------------------------------------
+# BARRA DE BÚSQUEDA + ENTER + LOADING + FLYTO
+# ---------------------------------------------------
 barra_busqueda = f"""
 <style>
 #search-container {{
     position: absolute;
     top: 10px;
-    left: 10px;
+    left: 575px;
     z-index: 999999;
     background: white;
     padding: 6px;
@@ -311,9 +330,8 @@ window.addEventListener('load', function() {{
         return;
     }}
 
-    // 🔍 Lógica de búsqueda agrupada en una función
     function ejecutarBusqueda() {{
-        var query = input.value;
+        var query = input.value.trim();
         if (!query) {{
             if (window.showAlert) {{
                 window.showAlert("Introduce una dirección.");
@@ -351,7 +369,7 @@ window.addEventListener('load', function() {{
 
             searchMarker = L.marker([lat, lon]).addTo(map).bindPopup(nombre).openPopup();
 
-            // Movimiento suave al nuevo sitio
+            // Movimiento suave
             map.flyTo([lat, lon], 19, {{
                 animate: true,
                 duration: 1.2
@@ -368,89 +386,17 @@ window.addEventListener('load', function() {{
                 alert("Error al buscar la dirección.");
             }}
         }});
-    }} // ← cierre correcto de ejecutarBusqueda()
+    }}
 
     // Click en el botón = buscar
     btn.addEventListener('click', ejecutarBusqueda);
 
-    // ⏎ ENTER en el input = buscar también
+    // ENTER en el input = buscar también
     input.addEventListener('keydown', function(e) {{
         if (e.key === 'Enter' || e.keyCode === 13) {{
             e.preventDefault();
             ejecutarBusqueda();
         }}
-    }});
-}});
-</script>
-""
-window.addEventListener('load', function() {{
-    var map = {nombre_mapa};
-    var searchMarker = null;
-
-    var btn = document.getElementById("search-btn");
-    var input = document.getElementById("search-input");
-
-    if (!btn || !input) {{
-        console.error("No se encontró el input o el botón de búsqueda.");
-        return;
-    }}
-
-    btn.addEventListener('click', function() {{
-        var query = input.value;
-        if (!query) {{
-            if (window.showAlert) {{
-                window.showAlert("Introduce una dirección.");
-            }} else {{
-                alert("Introduce una dirección.");
-            }}
-            return;
-        }}
-
-        var url = "http://localhost:8000/geocode?direccion=" + encodeURIComponent(query);
-
-        if (window.showLoading) {{
-            window.showLoading();
-        }}
-
-        fetch(url)
-        .then(function(response) {{
-            if (!response.ok) {{
-                throw new Error("No se encontró la dirección");
-            }}
-            return response.json();
-        }})
-        .then(function(data) {{
-            if (window.hideLoading) {{
-                window.hideLoading();
-            }}
-
-            var lat = data.lat;
-            var lon = data.lon;
-            var nombre = data.display_name || query;
-
-            if (searchMarker) {{
-                map.removeLayer(searchMarker);
-            }}
-
-            searchMarker = L.marker([lat, lon]).addTo(map).bindPopup(nombre).openPopup();
-
-            // MOVIMIENTO SUAVE
-            map.flyTo([lat, lon], 19, {{
-                animate: true,
-                duration: 1.2
-            }});
-        }})
-        .catch(function(error) {{
-            console.error(error);
-            if (window.hideLoading) {{
-                window.hideLoading();
-            }}
-            if (window.showAlert) {{
-                window.showAlert("Error al buscar la dirección");
-            }} else {{
-                alert("Error al buscar la dirección.");
-            }}
-        }});
     }});
 }});
 </script>

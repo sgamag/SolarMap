@@ -19,7 +19,7 @@
             <meta name="viewport" content="width=device-width,
                 initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
             <style>
-                #map_552cb32363230a17e5abcd2551103852 {
+                #map_bbad29554b8d440c02e41811b39600d6 {
                     position: relative;
                     width: 100.0%;
                     height: 100.0%;
@@ -57,10 +57,20 @@
     
     
 <style>
+html, body {
+    height: 100%;
+    margin: 0;
+}
+.folium-map {
+    width: 100%;
+    height: 100vh;
+}
+
+/* Botón de captura: arriba derecha */
 #capture-btn {
     position: absolute;
     top: 10px;
-    left: 1225px;
+    right: 150px;
     z-index: 999999;
     background: black;
     color: white;
@@ -75,6 +85,7 @@
     filter: brightness(1.1);
 }
 
+/* Cartel de aviso centrado */
 #custom-alert {
     position: fixed;
     top: 50%;
@@ -92,6 +103,7 @@
     transition: opacity 0.4s ease;
 }
 
+/* Overlay de carga para la búsqueda */
 #loading-overlay {
     position: fixed;
     top: 0;
@@ -133,14 +145,22 @@
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
 }
+
+/* Responsive para el botón */
+@media (max-width: 768px) {
+    #capture-btn {
+        padding: 6px 8px;
+        font-size: 12px;
+    }
+}
 </style>
 
-<div id="capture-btn"> Obtener Imágen </div>
+<div id="capture-btn"> Obtener Imagen </div>
 
 <!-- Cartel de aviso -->
 <div id="custom-alert"></div>
 
-<!-- Overlay de carga -->
+<!-- Overlay de carga (se usa en la BÚSQUEDA, no en la captura) -->
 <div id="loading-overlay">
     <div class="loading-box">
         Procesando búsqueda...
@@ -153,9 +173,8 @@ window.addEventListener('load', function() {
     var btn = document.getElementById("capture-btn");
     if (!btn) return;
 
-    var map = map_552cb32363230a17e5abcd2551103852;
+    var map = map_bbad29554b8d440c02e41811b39600d6;
 
-    // Rango de zoom permitido
     var minZoom = 19;
     var maxZoom = 20;
 
@@ -170,7 +189,7 @@ window.addEventListener('load', function() {
         }, 2500);
     }
 
-    // Funciones globales para el overlay de carga (USADAS EN LA BÚSQUEDA)
+    // Funciones globales de loading (se usan en la barra de búsqueda)
     window.showLoading = function() {
         var overlay = document.getElementById("loading-overlay");
         if (!overlay) return;
@@ -191,32 +210,27 @@ window.addEventListener('load', function() {
     function updateCaptureButtonColor() {
         var z = map.getZoom();
         if (z < minZoom) {
-            // Zoom demasiado bajo -> rojo
-            btn.style.backgroundColor = "#7f1d1d";
+            btn.style.backgroundColor = "#7f1d1d";  // rojo
             btn.style.borderColor = "#fecaca";
         } else if (z > maxZoom) {
-            // Zoom demasiado alto -> naranja
-            btn.style.backgroundColor = "#92400e";
+            btn.style.backgroundColor = "#92400e";  // naranja
             btn.style.borderColor = "#fed7aa";
         } else {
-            // Zoom dentro del rango -> verde
-            btn.style.backgroundColor = "#14532d";
+            btn.style.backgroundColor = "#14532d";  // verde
             btn.style.borderColor = "#4ade80";
         }
     }
 
-    // Actualizar color cuando cambie el zoom
     map.on('zoomend', updateCaptureButtonColor);
-    // Y también al cargar la página
     updateCaptureButtonColor();
 
-    // Captura de imagen (SIN loading)
+    // Captura de imagen (SIN overlay de carga)
     btn.onclick = function() {
         var currentZoom = map.getZoom();
 
         if (currentZoom < minZoom || currentZoom > maxZoom) {
             window.showAlert(
-                " Zoom no válido (" + currentZoom +
+                "Zoom no válido (" + currentZoom +
                 "). Solo permitido entre " + minZoom + " y " + maxZoom + "."
             );
             return;
@@ -224,13 +238,12 @@ window.addEventListener('load', function() {
 
         var mapContainer = document.getElementsByClassName("folium-map")[0];
         if (!mapContainer) {
-            window.showAlert(" No se encontró el contenedor del mapa.");
+            window.showAlert("❌ No se encontró el contenedor del mapa.");
             return;
         }
 
         var toHide = document.querySelectorAll(
-            '#capture-btn, #search-container,
-            .leaflet-control, .leaflet-control-layers-toggle, .leaflet-control-zoom, .leaflet-control-layers leaflet-control, .leaflet-control-attribution, .leaflet-control-scale'
+            '#capture-btn, #search-container, .leaflet-control-layers-toggle, .leaflet-control-zoom, .leaflet-control-attribution, .leaflet-control-scale'
         );
 
         toHide.forEach(function(el) {
@@ -254,7 +267,7 @@ window.addEventListener('load', function() {
             });
 
             console.error(err);
-            window.showAlert(" Error al capturar la imagen.");
+            window.showAlert("Error al capturar la imagen.");
         });
     };
 });
@@ -264,7 +277,7 @@ window.addEventListener('load', function() {
 #search-container {
     position: absolute;
     top: 10px;
-    left: 10px;
+    left: 575px;
     z-index: 999999;
     background: white;
     padding: 6px;
@@ -315,7 +328,7 @@ window.addEventListener('load', function() {
 
 <script>
 window.addEventListener('load', function() {
-    var map = map_552cb32363230a17e5abcd2551103852;
+    var map = map_bbad29554b8d440c02e41811b39600d6;
     var searchMarker = null;
 
     var btn = document.getElementById("search-btn");
@@ -326,9 +339,8 @@ window.addEventListener('load', function() {
         return;
     }
 
-    // 🔍 Lógica de búsqueda agrupada en una función
     function ejecutarBusqueda() {
-        var query = input.value;
+        var query = input.value.trim();
         if (!query) {
             if (window.showAlert) {
                 window.showAlert("Introduce una dirección.");
@@ -366,7 +378,7 @@ window.addEventListener('load', function() {
 
             searchMarker = L.marker([lat, lon]).addTo(map).bindPopup(nombre).openPopup();
 
-            // Movimiento suave al nuevo sitio
+            // Movimiento suave
             map.flyTo([lat, lon], 19, {
                 animate: true,
                 duration: 1.2
@@ -383,12 +395,12 @@ window.addEventListener('load', function() {
                 alert("Error al buscar la dirección.");
             }
         });
-    } // ← cierre correcto de ejecutarBusqueda()
+    }
 
     // Click en el botón = buscar
     btn.addEventListener('click', ejecutarBusqueda);
 
-    // ⏎ ENTER en el input = buscar también
+    // ENTER en el input = buscar también
     input.addEventListener('keydown', function(e) {
         if (e.key === 'Enter' || e.keyCode === 13) {
             e.preventDefault();
@@ -397,87 +409,15 @@ window.addEventListener('load', function() {
     });
 });
 </script>
-""
-window.addEventListener('load', function() {
-    var map = map_552cb32363230a17e5abcd2551103852;
-    var searchMarker = null;
-
-    var btn = document.getElementById("search-btn");
-    var input = document.getElementById("search-input");
-
-    if (!btn || !input) {
-        console.error("No se encontró el input o el botón de búsqueda.");
-        return;
-    }
-
-    btn.addEventListener('click', function() {
-        var query = input.value;
-        if (!query) {
-            if (window.showAlert) {
-                window.showAlert("Introduce una dirección.");
-            } else {
-                alert("Introduce una dirección.");
-            }
-            return;
-        }
-
-        var url = "http://localhost:8000/geocode?direccion=" + encodeURIComponent(query);
-
-        if (window.showLoading) {
-            window.showLoading();
-        }
-
-        fetch(url)
-        .then(function(response) {
-            if (!response.ok) {
-                throw new Error("No se encontró la dirección");
-            }
-            return response.json();
-        })
-        .then(function(data) {
-            if (window.hideLoading) {
-                window.hideLoading();
-            }
-
-            var lat = data.lat;
-            var lon = data.lon;
-            var nombre = data.display_name || query;
-
-            if (searchMarker) {
-                map.removeLayer(searchMarker);
-            }
-
-            searchMarker = L.marker([lat, lon]).addTo(map).bindPopup(nombre).openPopup();
-
-            // MOVIMIENTO SUAVE
-            map.flyTo([lat, lon], 19, {
-                animate: true,
-                duration: 1.2
-            });
-        })
-        .catch(function(error) {
-            console.error(error);
-            if (window.hideLoading) {
-                window.hideLoading();
-            }
-            if (window.showAlert) {
-                window.showAlert("Error al buscar la dirección");
-            } else {
-                alert("Error al buscar la dirección.");
-            }
-        });
-    });
-});
-</script>
     
-            <div class="folium-map" id="map_552cb32363230a17e5abcd2551103852" ></div>
+            <div class="folium-map" id="map_bbad29554b8d440c02e41811b39600d6" ></div>
         
 </body>
 <script>
     
     
-            var map_552cb32363230a17e5abcd2551103852 = L.map(
-                "map_552cb32363230a17e5abcd2551103852",
+            var map_bbad29554b8d440c02e41811b39600d6 = L.map(
+                "map_bbad29554b8d440c02e41811b39600d6",
                 {
                     center: [40.3727017, -3.9185823],
                     crs: L.CRS.EPSG3857,
@@ -494,7 +434,7 @@ window.addEventListener('load', function() {
 
         
     
-            var tile_layer_aead5d3c29f90c6def25c599fb349db6 = L.tileLayer(
+            var tile_layer_1bdc07f8ce92ff0e6bcb640f5c86ecf2 = L.tileLayer(
                 "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
                 {
   "minZoom": 0,
@@ -511,10 +451,10 @@ window.addEventListener('load', function() {
             );
         
     
-            tile_layer_aead5d3c29f90c6def25c599fb349db6.addTo(map_552cb32363230a17e5abcd2551103852);
+            tile_layer_1bdc07f8ce92ff0e6bcb640f5c86ecf2.addTo(map_bbad29554b8d440c02e41811b39600d6);
         
     
-            var tile_layer_d7c1595e8afcf202791f2c5eacca67c6 = L.tileLayer(
+            var tile_layer_d2481ab3c4573c22eab5095fdcd25156 = L.tileLayer(
                 "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
                 {
   "minZoom": 0,
@@ -531,26 +471,26 @@ window.addEventListener('load', function() {
             );
         
     
-            tile_layer_d7c1595e8afcf202791f2c5eacca67c6.addTo(map_552cb32363230a17e5abcd2551103852);
+            tile_layer_d2481ab3c4573c22eab5095fdcd25156.addTo(map_bbad29554b8d440c02e41811b39600d6);
         
     
-            var layer_control_55a0bffe97d2061bace2d17d71e426f8_layers = {
+            var layer_control_c790b3fceb19094fd0e452abfe9caf8a_layers = {
                 base_layers : {
-                    "openstreetmap" : tile_layer_aead5d3c29f90c6def25c599fb349db6,
-                    "Sat\u00e9lite" : tile_layer_d7c1595e8afcf202791f2c5eacca67c6,
+                    "openstreetmap" : tile_layer_1bdc07f8ce92ff0e6bcb640f5c86ecf2,
+                    "Sat\u00e9lite" : tile_layer_d2481ab3c4573c22eab5095fdcd25156,
                 },
                 overlays :  {
                 },
             };
-            let layer_control_55a0bffe97d2061bace2d17d71e426f8 = L.control.layers(
-                layer_control_55a0bffe97d2061bace2d17d71e426f8_layers.base_layers,
-                layer_control_55a0bffe97d2061bace2d17d71e426f8_layers.overlays,
+            let layer_control_c790b3fceb19094fd0e452abfe9caf8a = L.control.layers(
+                layer_control_c790b3fceb19094fd0e452abfe9caf8a_layers.base_layers,
+                layer_control_c790b3fceb19094fd0e452abfe9caf8a_layers.overlays,
                 {
   "position": "topright",
   "collapsed": true,
   "autoZIndex": true,
 }
-            ).addTo(map_552cb32363230a17e5abcd2551103852);
+            ).addTo(map_bbad29554b8d440c02e41811b39600d6);
 
         
 </script>
