@@ -1,18 +1,47 @@
-# src/db_setup.py
+# ============================================================
+# CONFIGURACIÓN Y CREACIÓN DE LA BASE DE DATOS SQLITE
+#
+# Este script crea:
+# - Tabla 'zonas'        → definición espacial de cada tile
+# - Tabla 'era5_data'    → datos climáticos horarios por zona
+# - Tabla 'potencial_tile_resumen'
+#       → resumen climático por tile (media)
+#
+# NOTA:
+# - No se calculan medianas ni percentiles para evitar
+#   incompatibilidades con SQLite y simplificar el modelo.
+# ============================================================
+
 from pathlib import Path
 import math
 from dataclasses import dataclass, asdict
 from typing import List
 from sqlalchemy import create_engine, text
 
+# ------------------------------------------------------------
+# PARÁMETROS ESPACIALES DEL PROYECTO
+# ------------------------------------------------------------
+
 CENTER_LAT = 40.415
 CENTER_LON = -3.684
 RADIUS_KM  = 24.0
 TILE_KM    = 8.0
-DB_PATH    = Path("BaseDeDatos/era5_madrid.db")
 
-def km_to_deg_lat(km): return km / 111.32
-def km_to_deg_lon(km, lat): return km / (111.32 * math.cos(math.radians(lat)))
+DB_PATH = Path("BaseDeDatos/era5_madrid.db")
+
+# ------------------------------------------------------------
+# UTILIDADES GEOGRÁFICAS
+# ------------------------------------------------------------
+
+def km_to_deg_lat(km):
+    return km / 111.32
+
+def km_to_deg_lon(km, lat):
+    return km / (111.32 * math.cos(math.radians(lat)))
+
+# ------------------------------------------------------------
+# DEFINICIÓN DE UN TILE
+# ------------------------------------------------------------
 
 @dataclass
 class Tile:
@@ -24,9 +53,14 @@ class Tile:
     lat_center: float
     lon_center: float
 
-def build_tiles(lat0, lon0, radius_km, tile_km):
+# ------------------------------------------------------------
+# CONSTRUCCIÓN DE LOS TILES
+# ------------------------------------------------------------
+
+def build_tiles(lat0, lon0, radius_km, tile_km) -> List[Tile]:
     dlat = km_to_deg_lat(radius_km)
     dlon = km_to_deg_lon(radius_km, lat0)
+
     lat_min, lat_max = lat0 - dlat, lat0 + dlat
     lon_min, lon_max = lon0 - dlon, lon0 + dlon
 
@@ -34,26 +68,36 @@ def build_tiles(lat0, lon0, radius_km, tile_km):
     step_lon = km_to_deg_lon(tile_km, lat0)
 
     tiles = []
-    lat = lat_min + step_lat/2
+    lat = lat_min + step_lat / 2
     i = 0
+
     while lat < lat_max:
-        lon = lon_min + step_lon/2
+        lon = lon_min + step_lon / 2
         j = 0
+
         while lon < lon_max:
-            tiles.append(Tile(
-                tile_id=f"tile_{i:02d}_{j:02d}",
-                lat_min=round(lat-step_lat/2,6),
-                lat_max=round(lat+step_lat/2,6),
-                lon_min=round(lon-step_lon/2,6),
-                lon_max=round(lon+step_lon/2,6),
-                lat_center=round(lat,6),
-                lon_center=round(lon,6)
-            ))
+            tiles.append(
+                Tile(
+                    tile_id=f"tile_{i:02d}_{j:02d}",
+                    lat_min=round(lat - step_lat / 2, 6),
+                    lat_max=round(lat + step_lat / 2, 6),
+                    lon_min=round(lon - step_lon / 2, 6),
+                    lon_max=round(lon + step_lon / 2, 6),
+                    lat_center=round(lat, 6),
+                    lon_center=round(lon, 6),
+                )
+            )
             lon += step_lon
             j += 1
+
         lat += step_lat
         i += 1
+
     return tiles
+
+# ------------------------------------------------------------
+# CREACIÓN DE LA BASE DE DATOS
+# ------------------------------------------------------------
 
 def main():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -79,12 +123,20 @@ def main():
         ssrd_kWhm2 REAL,
         t2m_C REAL,
         tcc REAL,
-        potencial_0_100 REAL,
+        potencial_climatico REAL,
         PRIMARY KEY (zona_id, valid_time),
         FOREIGN KEY (zona_id) REFERENCES zonas(id)
     );
 
-    CREATE INDEX IF NOT EXISTS idx_time ON era5_data(valid_time);
+    CREATE TABLE IF NOT EXISTS potencial_tile_resumen (
+        zona_id TEXT PRIMARY KEY,
+        potencial_medio REAL,
+        n_registros INTEGER,
+        last_updated TEXT,
+        FOREIGN KEY (zona_id) REFERENCES zonas(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_era5_time ON era5_data(valid_time);
     """
 
     with engine.begin() as con:
@@ -92,18 +144,30 @@ def main():
             if stmt.strip():
                 con.execute(text(stmt))
 
+    # Insertar tiles si la tabla está vacía
     with engine.begin() as con:
         n = con.execute(text("SELECT COUNT(*) FROM zonas")).scalar_one()
         if n == 0:
             tiles = build_tiles(CENTER_LAT, CENTER_LON, RADIUS_KM, TILE_KM)
-            insert_sql = text("""
-                INSERT INTO zonas (id, lat_min, lat_max, lon_min, lon_max, lat_center, lon_center)
-                VALUES (:tile_id, :lat_min, :lat_max, :lon_min, :lon_max, :lat_center, :lon_center)
-            """)
-            con.execute(insert_sql, [asdict(t) for t in tiles])
+            con.execute(
+                text("""
+                    INSERT INTO zonas (
+                        id, lat_min, lat_max, lon_min, lon_max, lat_center, lon_center
+                    )
+                    VALUES (
+                        :tile_id, :lat_min, :lat_max,
+                        :lon_min, :lon_max, :lat_center, :lon_center
+                    )
+                """),
+                [asdict(t) for t in tiles],
+            )
             print(f"Insertadas {len(tiles)} zonas.")
 
-    print("Base creada en:", DB_PATH.resolve())
+    print("Base de datos creada en:", DB_PATH.resolve())
+
+# ------------------------------------------------------------
+# EJECUCIÓN
+# ------------------------------------------------------------
 
 if __name__ == "__main__":
     main()
