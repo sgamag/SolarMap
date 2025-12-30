@@ -1,5 +1,5 @@
 # ============================================================
-# CONFIGURACIÓN Y CREACIÓN DE LA BASE DE DATOS SQLITE
+# CONFIGURACIÓN Y CREACIÓN DE LA BASE DE DATOS MYSQL
 #
 # Este script crea:
 # - Tabla 'zonas'        → definición espacial de cada tile
@@ -8,11 +8,11 @@
 #       → resumen climático por tile (media)
 #
 # NOTA:
-# - No se calculan medianas ni percentiles para evitar
-#   incompatibilidades con SQLite y simplificar el modelo.
+# - El esquema se inicializa UNA sola vez.
+# - Los datos se cargan posteriormente desde el pipeline en Python.
+# - El potencial real NO se almacena en la BD (se calcula al vuelo).
 # ============================================================
 
-from pathlib import Path
 import math
 from dataclasses import dataclass, asdict
 from typing import List
@@ -27,16 +27,33 @@ CENTER_LON = -3.684
 RADIUS_KM  = 24.0
 TILE_KM    = 8.0
 
-DB_PATH = Path("BaseDeDatos/era5_madrid.db")
+# ------------------------------------------------------------
+# CONFIGURACIÓN DE CONEXIÓN A MYSQL
+# ------------------------------------------------------------
+# Base de datos MySQL local que actúa como servidor central
+# para todo el grupo.
+
+DB_HOST = "localhost"
+DB_PORT = 3306
+DB_NAME = "era5_madrid"
+DB_USER = "era5_user"
+DB_PASS = "SolarMap67"   
+
+SQLALCHEMY_URL = (
+    f"mysql+pymysql://{DB_USER}:{DB_PASS}"
+    f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+)
 
 # ------------------------------------------------------------
 # UTILIDADES GEOGRÁFICAS
 # ------------------------------------------------------------
 
-def km_to_deg_lat(km):
+def km_to_deg_lat(km: float) -> float:
+    """Convierte kilómetros a grados de latitud."""
     return km / 111.32
 
-def km_to_deg_lon(km, lat):
+def km_to_deg_lon(km: float, lat: float) -> float:
+    """Convierte kilómetros a grados de longitud (depende de latitud)."""
     return km / (111.32 * math.cos(math.radians(lat)))
 
 # ------------------------------------------------------------
@@ -57,7 +74,13 @@ class Tile:
 # CONSTRUCCIÓN DE LOS TILES
 # ------------------------------------------------------------
 
-def build_tiles(lat0, lon0, radius_km, tile_km) -> List[Tile]:
+def build_tiles(lat0: float, lon0: float,
+                radius_km: float, tile_km: float) -> List[Tile]:
+    """
+    Genera la cuadrícula de tiles alrededor de un centro geográfico.
+    Cada tile representa una celda fija del área de estudio.
+    """
+
     dlat = km_to_deg_lat(radius_km)
     dlon = km_to_deg_lon(radius_km, lat0)
 
@@ -96,74 +119,93 @@ def build_tiles(lat0, lon0, radius_km, tile_km) -> List[Tile]:
     return tiles
 
 # ------------------------------------------------------------
-# CREACIÓN DE LA BASE DE DATOS
+# INICIALIZACIÓN DE LA BASE DE DATOS
 # ------------------------------------------------------------
 
 def main():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    engine = create_engine(f"sqlite:///{DB_PATH}", future=True)
-
-    DDL = """
-    PRAGMA journal_mode=WAL;
-    PRAGMA foreign_keys=ON;
-
-    CREATE TABLE IF NOT EXISTS zonas (
-        id TEXT PRIMARY KEY,
-        lat_min REAL NOT NULL,
-        lat_max REAL NOT NULL,
-        lon_min REAL NOT NULL,
-        lon_max REAL NOT NULL,
-        lat_center REAL NOT NULL,
-        lon_center REAL NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS era5_data (
-        zona_id TEXT NOT NULL,
-        valid_time TEXT NOT NULL,
-        ssrd_kWhm2 REAL,
-        t2m_C REAL,
-        tcc REAL,
-        potencial_climatico REAL,
-        PRIMARY KEY (zona_id, valid_time),
-        FOREIGN KEY (zona_id) REFERENCES zonas(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS potencial_tile_resumen (
-        zona_id TEXT PRIMARY KEY,
-        potencial_medio REAL,
-        n_registros INTEGER,
-        last_updated TEXT,
-        FOREIGN KEY (zona_id) REFERENCES zonas(id)
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_era5_time ON era5_data(valid_time);
+    """
+    Inicializa el esquema de la base de datos MySQL:
+    - crea las tablas si no existen
+    - inserta los tiles en la tabla 'zonas' (solo si está vacía)
     """
 
+    engine = create_engine(SQLALCHEMY_URL, future=True)
+
+    # --------------------------------------------------------
+    # DEFINICIÓN DEL ESQUEMA (DDL)
+    # --------------------------------------------------------
+
+    DDL = """
+    CREATE TABLE IF NOT EXISTS zonas (
+        id VARCHAR(32) PRIMARY KEY,
+        lat_min DOUBLE NOT NULL,
+        lat_max DOUBLE NOT NULL,
+        lon_min DOUBLE NOT NULL,
+        lon_max DOUBLE NOT NULL,
+        lat_center DOUBLE NOT NULL,
+        lon_center DOUBLE NOT NULL
+    ) ENGINE=InnoDB;
+
+    CREATE TABLE IF NOT EXISTS era5_data (
+        zona_id VARCHAR(32) NOT NULL,
+        valid_time DATETIME NOT NULL,
+        ssrd_kWhm2 DOUBLE,
+        t2m_C DOUBLE,
+        tcc DOUBLE,
+        potencial_climatico DOUBLE,
+        PRIMARY KEY (zona_id, valid_time),
+        CONSTRAINT fk_era5_zona
+            FOREIGN KEY (zona_id) REFERENCES zonas(id)
+    ) ENGINE=InnoDB;
+
+    CREATE TABLE IF NOT EXISTS potencial_tile_resumen (
+        zona_id VARCHAR(32) PRIMARY KEY,
+        potencial_medio DOUBLE,
+        n_registros BIGINT,
+        last_updated DATETIME,
+        CONSTRAINT fk_resumen_zona
+            FOREIGN KEY (zona_id) REFERENCES zonas(id)
+    ) ENGINE=InnoDB;
+    """
+
+    # Ejecutar el DDL
     with engine.begin() as con:
         for stmt in DDL.split(";"):
             if stmt.strip():
                 con.execute(text(stmt))
 
-    # Insertar tiles si la tabla está vacía
+    # --------------------------------------------------------
+    # INSERCIÓN DE ZONAS (solo si la tabla está vacía)
+    # --------------------------------------------------------
+
     with engine.begin() as con:
         n = con.execute(text("SELECT COUNT(*) FROM zonas")).scalar_one()
+
         if n == 0:
             tiles = build_tiles(CENTER_LAT, CENTER_LON, RADIUS_KM, TILE_KM)
+
             con.execute(
                 text("""
                     INSERT INTO zonas (
-                        id, lat_min, lat_max, lon_min, lon_max, lat_center, lon_center
+                        id, lat_min, lat_max,
+                        lon_min, lon_max,
+                        lat_center, lon_center
                     )
                     VALUES (
                         :tile_id, :lat_min, :lat_max,
-                        :lon_min, :lon_max, :lat_center, :lon_center
+                        :lon_min, :lon_max,
+                        :lat_center, :lon_center
                     )
                 """),
                 [asdict(t) for t in tiles],
             )
+
             print(f"Insertadas {len(tiles)} zonas.")
 
-    print("Base de datos creada en:", DB_PATH.resolve())
+        else:
+            print("La tabla 'zonas' ya contiene datos. No se reinserta.")
+
+    print("Inicialización de la base de datos MySQL completada correctamente.")
 
 # ------------------------------------------------------------
 # EJECUCIÓN

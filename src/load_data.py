@@ -19,7 +19,20 @@ from sqlalchemy import create_engine, text
 # CONFIGURACIÓN
 # ------------------------------------------------------------
 
-DB_PATH = Path("BaseDeDatos/era5_madrid.db")
+# ❌ SQLite (antes)
+# DB_PATH = Path("BaseDeDatos/era5_madrid.db")
+
+# ✅ MySQL (ahora)
+DB_HOST = "localhost"
+DB_PORT = 3306
+DB_NAME = "era5_madrid"
+DB_USER = "era5_user"
+DB_PASS = "SolarMap67"
+
+SQLALCHEMY_URL = (
+    f"mysql+pymysql://{DB_USER}:{DB_PASS}"
+    f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+)
 
 # Los CSV *_potencial.csv están en:
 # src/data/csv/tile_xx_yy/AAAA/potencial/
@@ -27,12 +40,14 @@ CSV_ROOT = Path(__file__).resolve().parent / "data" / "csv"
 
 BATCH = 50_000
 
-engine = create_engine(f"sqlite:///{DB_PATH}", future=True)
+engine = create_engine(SQLALCHEMY_URL, future=True)
 
 # ------------------------------------------------------------
 # UPSERT DE DATOS HORARIOS
 # ------------------------------------------------------------
 
+# ❌ SQLite usaba ON CONFLICT
+# ✅ MySQL usa ON DUPLICATE KEY UPDATE
 UPSERT_ERA5 = text("""
 INSERT INTO era5_data (
     zona_id,
@@ -50,11 +65,11 @@ VALUES (
     :tcc,
     :potencial_climatico
 )
-ON CONFLICT(zona_id, valid_time) DO UPDATE SET
-    ssrd_kWhm2          = excluded.ssrd_kWhm2,
-    t2m_C               = excluded.t2m_C,
-    tcc                 = excluded.tcc,
-    potencial_climatico = excluded.potencial_climatico;
+ON DUPLICATE KEY UPDATE
+    ssrd_kWhm2          = VALUES(ssrd_kWhm2),
+    t2m_C               = VALUES(t2m_C),
+    tcc                 = VALUES(tcc),
+    potencial_climatico = VALUES(potencial_climatico);
 """)
 
 # ------------------------------------------------------------
@@ -128,6 +143,8 @@ def actualizar_resumen_por_tile():
 
     resumen["last_updated"] = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    # ❌ SQLite usaba ON CONFLICT
+    # ✅ MySQL usa ON DUPLICATE KEY UPDATE
     UPSERT_RESUMEN = text("""
         INSERT INTO potencial_tile_resumen (
             zona_id,
@@ -141,10 +158,10 @@ def actualizar_resumen_por_tile():
             :n_registros,
             :last_updated
         )
-        ON CONFLICT(zona_id) DO UPDATE SET
-            potencial_medio = excluded.potencial_medio,
-            n_registros     = excluded.n_registros,
-            last_updated    = excluded.last_updated;
+        ON DUPLICATE KEY UPDATE
+            potencial_medio = VALUES(potencial_medio),
+            n_registros     = VALUES(n_registros),
+            last_updated    = VALUES(last_updated);
     """)
 
     with engine.begin() as con:
@@ -160,11 +177,10 @@ def actualizar_resumen_por_tile():
 # ------------------------------------------------------------
 
 def main():
-    if not DB_PATH.exists():
-        print("Base de datos no encontrada. Ejecuta primero db_setup.py")
-        return
+    # ❌ Comprobación SQLite eliminada
+    # En MySQL asumimos que la BD existe y es accesible
 
-    files = sorted(CSV_ROOT.rglob("potencial/*_potencial.csv"))
+    files = sorted(CSV_ROOT.rglob("*_potencial.csv"))
 
     print(f"Encontrados {len(files)} CSV de potencial.")
 
