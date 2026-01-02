@@ -20,6 +20,7 @@ from sqlalchemy import create_engine, text
 # ------------------------------------------------------------
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 # ❌ SQLite (antes)
 # DB_PATH = Path("BaseDeDatos/era5_madrid.db")
 
@@ -34,6 +35,9 @@ SQLALCHEMY_URL = (
     f"mysql+pymysql://{DB_USER}:{DB_PASS}"
     f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 )
+=======
+DB_PATH = Path("src/BaseDeDatos/era5_madrid.db")
+>>>>>>> Stashed changes
 =======
 DB_PATH = Path("src/BaseDeDatos/era5_madrid.db")
 >>>>>>> Stashed changes
