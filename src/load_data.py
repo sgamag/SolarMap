@@ -12,9 +12,9 @@
 # NOTA IMPORTANTE:
 # - Este script NO descarga datos
 # - Este script NO calcula el potencial físico
-# - Este script SOLO carga y resume datos en la base de datos
+# - Este script SOLO carga y resume datos en la base de datos MySQL
 #
-# Es el puente entre los CSV procesados y MySQL.
+# Es el puente entre los CSV procesados y la BD.
 # ============================================================
 
 from pathlib import Path
@@ -23,11 +23,10 @@ from sqlalchemy import create_engine, text
 
 
 # ------------------------------------------------------------
-# CONFIGURACIÓN DE CONEXIÓN A LA BASE DE DATOS
+# CONFIGURACIÓN DE CONEXIÓN A MYSQL
 # ------------------------------------------------------------
-# Se define la conexión a MySQL usando el usuario del proyecto.
-# Este usuario tiene permisos SOLO sobre la base de datos
-# era5_madrid, no es root.
+# Se define la conexión a la base de datos central del proyecto.
+# Se usa un usuario específico del proyecto (no root).
 # ------------------------------------------------------------
 
 DB_HOST = "localhost"     # En tu portátil: localhost
@@ -59,7 +58,7 @@ CSV_ROOT = Path(__file__).resolve().parent / "data" / "csv"
 # ------------------------------------------------------------
 # TAMAÑO DE LOTE PARA INSERCIONES
 # ------------------------------------------------------------
-# Insertar miles de filas de golpe puede ser costoso.
+# Insertar muchos registros de golpe puede ser costoso.
 # Por eso se insertan en bloques (batch).
 # ------------------------------------------------------------
 
@@ -69,7 +68,7 @@ BATCH = 50_000
 # ------------------------------------------------------------
 # SENTENCIA UPSERT PARA DATOS HORARIOS (era5_data)
 # ------------------------------------------------------------
-# En MySQL, el UPSERT se hace con:
+# En MySQL el UPSERT se hace con:
 #   ON DUPLICATE KEY UPDATE
 #
 # La clave primaria de era5_data es:
@@ -110,9 +109,9 @@ ON DUPLICATE KEY UPDATE
 # ------------------------------------------------------------
 # Esta función:
 # - Lee un CSV *_potencial.csv
-# - Valida columnas
-# - Normaliza nombres
-# - Inserta/actualiza en era5_data usando UPSERT
+# - Valida columnas mínimas
+# - Normaliza nombres de columnas
+# - Inserta/actualiza datos en era5_data
 # ------------------------------------------------------------
 
 def load_csv(path: Path):
@@ -120,7 +119,7 @@ def load_csv(path: Path):
     # Leemos el CSV de potencial
     df = pd.read_csv(path)
 
-    # Comprobamos que el CSV tiene todas las columnas necesarias
+    # Columnas mínimas necesarias
     required = {
         "valid_time",
         "ssrd_kWhm2",
@@ -138,8 +137,7 @@ def load_csv(path: Path):
     # --------------------------------------------------------
     # NORMALIZACIÓN DE FECHAS
     # --------------------------------------------------------
-    # Convertimos valid_time a datetime y luego a string
-    # en formato compatible con MySQL DATETIME.
+    # Convertimos valid_time a formato compatible con MySQL DATETIME
     # --------------------------------------------------------
 
     df["valid_time"] = (
@@ -150,11 +148,11 @@ def load_csv(path: Path):
     # --------------------------------------------------------
     # MAPEO DE NOMBRES CSV → BASE DE DATOS
     # --------------------------------------------------------
-    # En CSV:
+    # CSV:
     #   tile_id        → identificador del tile
     #   potencial_0_1  → potencial normalizado
     #
-    # En BD:
+    # BD:
     #   zona_id              → FK a zonas
     #   potencial_climatico  → valor horario
     # --------------------------------------------------------
@@ -167,7 +165,7 @@ def load_csv(path: Path):
         inplace=True
     )
 
-    # Nos quedamos SOLO con las columnas que existen en era5_data
+    # Seleccionamos SOLO las columnas que existen en era5_data
     df = df[
         ["zona_id", "valid_time", "ssrd_kWhm2", "t2m_C", "tcc", "potencial_climatico"]
     ]
@@ -175,9 +173,7 @@ def load_csv(path: Path):
     # --------------------------------------------------------
     # INSERCIÓN EN BD POR LOTES
     # --------------------------------------------------------
-    # Usamos una transacción (engine.begin()) para asegurar
-    # consistencia: o se insertan todas las filas del lote,
-    # o ninguna.
+    # Usamos una transacción para asegurar consistencia.
     # --------------------------------------------------------
 
     with engine.begin() as con:
@@ -194,20 +190,17 @@ def load_csv(path: Path):
 # ------------------------------------------------------------
 # ACTUALIZACIÓN DEL RESUMEN POR TILE
 # ------------------------------------------------------------
-# Esta función recalcula la tabla potencial_tile_resumen:
-#
-# - Agrupa era5_data por zona_id
-# - Calcula:
-#     * potencial_medio  = media del potencial horario
-#     * n_registros      = número de horas disponibles
-# - Actualiza o inserta una fila por tile
+# Recalcula la tabla potencial_tile_resumen:
+# - 1 fila por tile
+# - media del potencial horario
+# - número de registros usados
 # ------------------------------------------------------------
 
 def actualizar_resumen_por_tile():
 
     print("Actualizando potencial_tile_resumen (media)...")
 
-    # Leemos SOLO lo necesario de la tabla grande
+    # Leemos solo lo necesario de la tabla grande
     df = pd.read_sql_query(
         "SELECT zona_id, potencial_climatico FROM era5_data",
         engine
@@ -230,13 +223,11 @@ def actualizar_resumen_por_tile():
           .reset_index()
     )
 
-    # Añadimos timestamp de actualización
+    # Timestamp de actualización
     resumen["last_updated"] = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
 
     # --------------------------------------------------------
-    # UPSERT EN potencial_tile_resumen
-    # --------------------------------------------------------
-    # Clave primaria: zona_id
+    # UPSERT DEL RESUMEN EN MYSQL
     # --------------------------------------------------------
 
     UPSERT_RESUMEN = text("""
@@ -272,7 +263,7 @@ def actualizar_resumen_por_tile():
 # ------------------------------------------------------------
 # Orquesta la carga completa:
 # 1) Localiza todos los *_potencial.csv
-# 2) Los carga uno a uno en era5_data
+# 2) Los carga en era5_data
 # 3) Recalcula el resumen final
 # ------------------------------------------------------------
 
