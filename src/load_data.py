@@ -1,53 +1,85 @@
 # ============================================================
 # CARGA DE DATOS DE POTENCIAL EN LA BASE DE DATOS
 #
-# Este script:
-# 1) Inserta / actualiza datos horarios en 'era5_data'
-# 2) Recalcula la media del potencial por tile
-#    y la guarda en 'potencial_tile_resumen'
+# Este script se encarga de la fase final del pipeline:
 #
-# NOTA:
-# - No se usan medianas ni percentiles para mantener
-#   compatibilidad con SQLite.
+# 1) Leer los CSV *_potencial.csv generados en el paso anterior
+# 2) Insertar o actualizar los datos horarios en la tabla era5_data
+#    (UPSERT: no duplica filas)
+# 3) Recalcular el potencial medio por tile
+#    y almacenarlo en la tabla potencial_tile_resumen
+#
+# NOTA IMPORTANTE:
+# - Este script NO descarga datos
+# - Este script NO calcula el potencial físico
+# - Este script SOLO carga y resume datos en la base de datos
+#
+# Es el puente entre los CSV procesados y MySQL.
 # ============================================================
 
 from pathlib import Path
 import pandas as pd
 from sqlalchemy import create_engine, text
 
+
 # ------------------------------------------------------------
-# CONFIGURACIÓN
+# CONFIGURACIÓN DE CONEXIÓN A LA BASE DE DATOS
+# ------------------------------------------------------------
+# Se define la conexión a MySQL usando el usuario del proyecto.
+# Este usuario tiene permisos SOLO sobre la base de datos
+# era5_madrid, no es root.
 # ------------------------------------------------------------
 
-# ❌ SQLite (antes)
-# DB_PATH = Path("BaseDeDatos/era5_madrid.db")
-
-# ✅ MySQL (ahora)
-DB_HOST = "localhost"
+DB_HOST = "localhost"     # En tu portátil: localhost
 DB_PORT = 3306
 DB_NAME = "era5_madrid"
 DB_USER = "era5_user"
-DB_PASS = "SolarMap67"
+DB_PASS = "SolarMap67"    # Contraseña del usuario del proyecto
 
 SQLALCHEMY_URL = (
     f"mysql+pymysql://{DB_USER}:{DB_PASS}"
     f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 )
 
-# Los CSV *_potencial.csv están en:
-# src/data/csv/tile_xx_yy/AAAA/potencial/
+# Creamos el engine de SQLAlchemy.
+# El engine gestiona conexiones, transacciones y ejecución SQL.
+engine = create_engine(SQLALCHEMY_URL, future=True)
+
+
+# ------------------------------------------------------------
+# RUTA DONDE SE ENCUENTRAN LOS CSV DE POTENCIAL
+# ------------------------------------------------------------
+# Estructura esperada:
+# src/data/csv/tile_XX_YY/AAAA/AAAA_MM_potencial.csv
+# ------------------------------------------------------------
+
 CSV_ROOT = Path(__file__).resolve().parent / "data" / "csv"
+
+
+# ------------------------------------------------------------
+# TAMAÑO DE LOTE PARA INSERCIONES
+# ------------------------------------------------------------
+# Insertar miles de filas de golpe puede ser costoso.
+# Por eso se insertan en bloques (batch).
+# ------------------------------------------------------------
 
 BATCH = 50_000
 
-engine = create_engine(SQLALCHEMY_URL, future=True)
 
 # ------------------------------------------------------------
-# UPSERT DE DATOS HORARIOS
+# SENTENCIA UPSERT PARA DATOS HORARIOS (era5_data)
+# ------------------------------------------------------------
+# En MySQL, el UPSERT se hace con:
+#   ON DUPLICATE KEY UPDATE
+#
+# La clave primaria de era5_data es:
+#   (zona_id, valid_time)
+#
+# Esto garantiza:
+# - Si la fila no existe → se inserta
+# - Si ya existe → se actualiza
 # ------------------------------------------------------------
 
-# ❌ SQLite usaba ON CONFLICT
-# ✅ MySQL usa ON DUPLICATE KEY UPDATE
 UPSERT_ERA5 = text("""
 INSERT INTO era5_data (
     zona_id,
@@ -72,13 +104,23 @@ ON DUPLICATE KEY UPDATE
     potencial_climatico = VALUES(potencial_climatico);
 """)
 
+
 # ------------------------------------------------------------
 # CARGA DE UN CSV INDIVIDUAL
 # ------------------------------------------------------------
+# Esta función:
+# - Lee un CSV *_potencial.csv
+# - Valida columnas
+# - Normaliza nombres
+# - Inserta/actualiza en era5_data usando UPSERT
+# ------------------------------------------------------------
 
 def load_csv(path: Path):
+
+    # Leemos el CSV de potencial
     df = pd.read_csv(path)
 
+    # Comprobamos que el CSV tiene todas las columnas necesarias
     required = {
         "valid_time",
         "ssrd_kWhm2",
@@ -88,14 +130,34 @@ def load_csv(path: Path):
         "tile_id"
     }
 
+    # Si falta alguna columna, no se carga este archivo
     if not required.issubset(df.columns):
         print("[SKIP] Columnas incompletas:", path)
         return
+
+    # --------------------------------------------------------
+    # NORMALIZACIÓN DE FECHAS
+    # --------------------------------------------------------
+    # Convertimos valid_time a datetime y luego a string
+    # en formato compatible con MySQL DATETIME.
+    # --------------------------------------------------------
 
     df["valid_time"] = (
         pd.to_datetime(df["valid_time"], errors="coerce")
         .dt.strftime("%Y-%m-%d %H:%M:%S")
     )
+
+    # --------------------------------------------------------
+    # MAPEO DE NOMBRES CSV → BASE DE DATOS
+    # --------------------------------------------------------
+    # En CSV:
+    #   tile_id        → identificador del tile
+    #   potencial_0_1  → potencial normalizado
+    #
+    # En BD:
+    #   zona_id              → FK a zonas
+    #   potencial_climatico  → valor horario
+    # --------------------------------------------------------
 
     df.rename(
         columns={
@@ -105,33 +167,60 @@ def load_csv(path: Path):
         inplace=True
     )
 
+    # Nos quedamos SOLO con las columnas que existen en era5_data
     df = df[
         ["zona_id", "valid_time", "ssrd_kWhm2", "t2m_C", "tcc", "potencial_climatico"]
     ]
 
+    # --------------------------------------------------------
+    # INSERCIÓN EN BD POR LOTES
+    # --------------------------------------------------------
+    # Usamos una transacción (engine.begin()) para asegurar
+    # consistencia: o se insertan todas las filas del lote,
+    # o ninguna.
+    # --------------------------------------------------------
+
     with engine.begin() as con:
         for i in range(0, len(df), BATCH):
             chunk = df.iloc[i:i + BATCH]
-            con.execute(UPSERT_ERA5, chunk.to_dict(orient="records"))
+            con.execute(
+                UPSERT_ERA5,
+                chunk.to_dict(orient="records")
+            )
 
     print("Insertado en era5_data:", path)
 
+
 # ------------------------------------------------------------
-# ACTUALIZACIÓN DEL RESUMEN POR TILE (MEDIA)
+# ACTUALIZACIÓN DEL RESUMEN POR TILE
+# ------------------------------------------------------------
+# Esta función recalcula la tabla potencial_tile_resumen:
+#
+# - Agrupa era5_data por zona_id
+# - Calcula:
+#     * potencial_medio  = media del potencial horario
+#     * n_registros      = número de horas disponibles
+# - Actualiza o inserta una fila por tile
 # ------------------------------------------------------------
 
 def actualizar_resumen_por_tile():
+
     print("Actualizando potencial_tile_resumen (media)...")
 
+    # Leemos SOLO lo necesario de la tabla grande
     df = pd.read_sql_query(
         "SELECT zona_id, potencial_climatico FROM era5_data",
         engine
     )
 
+    # Si no hay datos, no hacemos nada
     if df.empty:
         print("No hay datos para resumir.")
         return
 
+    # --------------------------------------------------------
+    # AGREGACIÓN POR TILE
+    # --------------------------------------------------------
     resumen = (
         df.groupby("zona_id")["potencial_climatico"]
           .agg(
@@ -141,10 +230,15 @@ def actualizar_resumen_por_tile():
           .reset_index()
     )
 
+    # Añadimos timestamp de actualización
     resumen["last_updated"] = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # ❌ SQLite usaba ON CONFLICT
-    # ✅ MySQL usa ON DUPLICATE KEY UPDATE
+    # --------------------------------------------------------
+    # UPSERT EN potencial_tile_resumen
+    # --------------------------------------------------------
+    # Clave primaria: zona_id
+    # --------------------------------------------------------
+
     UPSERT_RESUMEN = text("""
         INSERT INTO potencial_tile_resumen (
             zona_id,
@@ -172,31 +266,40 @@ def actualizar_resumen_por_tile():
 
     print("potencial_tile_resumen actualizada.")
 
+
 # ------------------------------------------------------------
-# MAIN
+# FUNCIÓN PRINCIPAL
+# ------------------------------------------------------------
+# Orquesta la carga completa:
+# 1) Localiza todos los *_potencial.csv
+# 2) Los carga uno a uno en era5_data
+# 3) Recalcula el resumen final
 # ------------------------------------------------------------
 
 def main():
-    # ❌ Comprobación SQLite eliminada
-    # En MySQL asumimos que la BD existe y es accesible
 
+    # Buscamos todos los CSV de potencial existentes
     files = sorted(CSV_ROOT.rglob("*_potencial.csv"))
 
     print(f"Encontrados {len(files)} CSV de potencial.")
 
+    # Si no hay CSV, no hay nada que cargar
     if not files:
         print("No hay CSV *_potencial.csv para cargar.")
         return
 
+    # Cargamos cada CSV individual
     for f in files:
         load_csv(f)
 
+    # Actualizamos el resumen al final
     actualizar_resumen_por_tile()
 
     print("Carga completada correctamente.")
 
+
 # ------------------------------------------------------------
-# EJECUCIÓN
+# EJECUCIÓN DEL SCRIPT
 # ------------------------------------------------------------
 
 if __name__ == "__main__":

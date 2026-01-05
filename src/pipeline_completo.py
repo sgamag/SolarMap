@@ -47,7 +47,7 @@ DB_HOST = "localhost"
 DB_PORT = 3306
 DB_NAME = "era5_madrid"
 DB_USER = "era5_user"
-DB_PASS = "password_segura"
+DB_PASS = "SolarMap67"
 
 SQLALCHEMY_URL = (
     f"mysql+pymysql://{DB_USER}:{DB_PASS}"
