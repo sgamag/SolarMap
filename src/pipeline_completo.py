@@ -9,10 +9,13 @@
 # Flujo:
 # 1) Leer en BD el último mes cargado (MAX valid_time).
 # 2) Calcular el último mes completo disponible = mes_actual - 1
-# 3) Descargar SOLO los meses faltantes (descargar_radiacion.py)
-# 4) Procesar potencial SOLO para esos meses (procesar_potencial.py, en modo batch)
-# 5) Cargar *_potencial.csv en MySQL (load_data.py) + actualizar resumen
-# 6) Limpiar temporales (CSV y descargas) para no ocupar espacio
+# 3) Descargar por AÑOS completos (descargar_radiacion.py)
+# 4) Procesar potencial SOLO hasta el último mes completo
+# 5) Cargar *_potencial.csv en MySQL (load_data.py)
+#
+# NOTA CLAVE:
+# - Aunque se descarguen meses "de más", solo se procesan y cargan
+#   los meses completos válidos.
 # ============================================================
 
 import sys
@@ -23,24 +26,20 @@ from datetime import datetime
 from sqlalchemy import create_engine, text
 
 # ------------------------------------------------------------
-# CONFIGURACIÓN DE RUTAS (ajústalo si tu estructura cambia)
+# CONFIGURACIÓN DE RUTAS
 # ------------------------------------------------------------
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SRC_DIR = PROJECT_ROOT / "src"
 
-# Importante: según lo que has dicho, tus CSV están en src/data/csv
 CSV_ROOT = SRC_DIR / "data" / "csv"
-
-RAW_ROOT = PROJECT_ROOT / "data" / "raw"
-RAW_ROOT_ALT = SRC_DIR / "data" / "raw"
 
 DESCARGA_SCRIPT = SRC_DIR / "descargar_radiacion.py"
 POTENCIAL_SCRIPT = SRC_DIR / "procesar_potencial.py"
 LOAD_SCRIPT = SRC_DIR / "load_data.py"
 
 # ------------------------------------------------------------
-# CONEXIÓN A MYSQL (MISMA QUE EN load_data.py)
+# CONEXIÓN A MYSQL
 # ------------------------------------------------------------
 
 DB_HOST = "localhost"
@@ -62,11 +61,9 @@ engine = create_engine(SQLALCHEMY_URL, future=True)
 
 def obtener_ultimo_mes_en_bd():
     """
-    Devuelve (year, month) del último dato presente en era5_data
-    según valid_time.
-    Si no hay datos, devuelve None.
+    Devuelve (year, month) del último dato presente en era5_data.
+    Si la BD está vacía, devuelve None.
     """
-
     with engine.begin() as con:
         result = con.execute(
             text("SELECT MAX(valid_time) FROM era5_data")
@@ -83,8 +80,9 @@ def obtener_ultimo_mes_en_bd():
 
 def ultimo_mes_completo_disponible():
     """
-    Regla simple y defendible:
-    - El último mes completo disponible es el mes anterior al actual.
+    El último mes completo disponible es el mes anterior al actual.
+    Ejemplo:
+      - Hoy = noviembre 2025 → último completo = octubre 2025
     """
     hoy = datetime.now()
     if hoy.month == 1:
@@ -92,80 +90,95 @@ def ultimo_mes_completo_disponible():
     return hoy.year, hoy.month - 1
 
 # ------------------------------------------------------------
-# 3) ITERADOR DE MESES
+# 3) DESCARGA POR AÑOS (INTERFAZ REAL DEL DESCARGADOR)
 # ------------------------------------------------------------
 
-def iterar_meses(y_ini, m_ini, y_fin, m_fin):
-    y, m = y_ini, m_ini
-    while (y < y_fin) or (y == y_fin and m <= m_fin):
-        yield y, m
-        m += 1
-        if m == 13:
-            m = 1
-            y += 1
-
-# ------------------------------------------------------------
-# 4) EJECUTAR DESCARGA PARA UN MES
-# ------------------------------------------------------------
-
-def ejecutar_descarga_mes(year: int, month: int) -> None:
+def ejecutar_descarga_por_anos(start_year: int, end_year: int):
+    """
+    Llama a descargar_radiacion.py usando --start-year / --end-year.
+    El control mensual fino se hará después.
+    """
     if not DESCARGA_SCRIPT.exists():
         raise FileNotFoundError(f"No existe {DESCARGA_SCRIPT}")
 
     cmd = [
         sys.executable,
         str(DESCARGA_SCRIPT),
-        "--year", str(year),
-        "--month", f"{month:02d}",
+        "--start-year", str(start_year),
+        "--end-year", str(end_year),
     ]
 
-    print(f"\n--- DESCARGA {year}-{month:02d} ---")
-    result = subprocess.run(cmd)
+    print("\n--- DESCARGA ERA5 POR AÑOS ---")
+    print("Ejecutando:", " ".join(cmd))
 
+    result = subprocess.run(cmd)
     if result.returncode != 0:
-        raise RuntimeError(f"Falló descargar_radiacion.py para {year}-{month:02d}")
+        raise RuntimeError("Falló descargar_radiacion.py")
 
 # ------------------------------------------------------------
-# MAIN: ORQUESTACIÓN COMPLETA
+# 4) LIMPIEZA DE CSV POSTERIORES AL ÚLTIMO MES COMPLETO
+# ------------------------------------------------------------
+
+def limpiar_csv_fuera_de_rango(end_year: int, end_month: int):
+    """
+    Elimina (o ignora) CSV que correspondan a meses posteriores
+    al último mes completo disponible.
+    Esto garantiza que solo se procesen meses válidos.
+    """
+    if not CSV_ROOT.exists():
+        return
+
+    for csv_path in CSV_ROOT.rglob("*.csv"):
+        try:
+            # Estructura esperada:
+            # .../tile_xx_yy/YYYY/YYYY_MM.csv o YYYY_MM_potencial.csv
+            year = int(csv_path.parent.name)
+            month = int(csv_path.stem.split("_")[1])
+
+            if (year, month) > (end_year, end_month):
+                print(f"Saltando CSV fuera de rango: {csv_path}")
+                csv_path.unlink(missing_ok=True)
+
+        except Exception:
+            # Si el nombre no sigue el patrón esperado, no tocamos nada
+            continue
+
+# ------------------------------------------------------------
+# MAIN
 # ------------------------------------------------------------
 
 def main():
-    print("=== PIPELINE INCREMENTAL (MENSUAL) ===")
+    print("=== PIPELINE INCREMENTAL (MENSUAL, CONTROLADO) ===")
 
-    # 1) Identificar último mes en BD
+    # 1) Último mes cargado en BD
     ultimo_bd = obtener_ultimo_mes_en_bd()
 
     if ultimo_bd is None:
         print("No hay datos en BD. Se asume inicio en 2000-01.")
-        start_year, start_month = 2000, 1
+        start_year = 2000
     else:
-        y, m = ultimo_bd
-        if m == 12:
-            start_year, start_month = y + 1, 1
-        else:
-            start_year, start_month = y, m + 1
+        start_year = ultimo_bd[0]
 
-    # 2) Determinar hasta dónde podemos descargar
+    # 2) Último mes completo disponible
     end_year, end_month = ultimo_mes_completo_disponible()
 
     print("Último mes en BD:", ultimo_bd)
     print("Último mes completo disponible:", (end_year, end_month))
 
-    if (start_year, start_month) > (end_year, end_month):
-        print("No hay nuevos meses completos que descargar.")
+    if ultimo_bd and (ultimo_bd[0], ultimo_bd[1]) >= (end_year, end_month):
+        print("La BD ya está actualizada hasta el último mes completo.")
         return
 
-    print(
-        f"Se descargarán y cargarán datos desde "
-        f"{start_year}-{start_month:02d} hasta {end_year}-{end_month:02d}"
-    )
+    # 3) Descargar por años completos
+    ejecutar_descarga_por_anos(start_year, end_year)
 
-    # 3) Ejecutar descarga mes a mes
-    for y, m in iterar_meses(start_year, start_month, end_year, end_month):
-        ejecutar_descarga_mes(y, m)
+    # 4) Limpiar CSV fuera de rango mensual
+    limpiar_csv_fuera_de_rango(end_year, end_month)
 
-    # 4) Ejecutar pipeline de potencial y carga
+    # 5) Procesar potencial (solo CSV válidos)
     subprocess.run([sys.executable, str(POTENCIAL_SCRIPT)])
+
+    # 6) Cargar a MySQL
     subprocess.run([sys.executable, str(LOAD_SCRIPT)])
 
     print("\nPipeline completado correctamente.")
