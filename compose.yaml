@@ -12,6 +12,7 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
 
+  # Solo sirve para ejecuciones manuales o pruebas puntuales
   descarga:
     build:
       context: .
@@ -34,7 +35,7 @@ services:
       - ./data:/app/data
     working_dir: /app/src
     command: python procesar_radiacion.py
-
+  
   sql_worker:
     build:
       context: .
@@ -43,6 +44,7 @@ services:
     volumes:
       - ./src:/app/src
       - ./data:/app/data
+      - ./.cdsapirc:/root/.cdsapirc:ro
     working_dir: /app/src
     environment:
       DB_HOST: mysql
