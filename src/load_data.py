@@ -20,6 +20,7 @@
 from pathlib import Path
 import pandas as pd
 from sqlalchemy import create_engine, text
+import os
 
 
 # ------------------------------------------------------------
@@ -29,11 +30,11 @@ from sqlalchemy import create_engine, text
 # Se usa un usuario específico del proyecto (no root).
 # ------------------------------------------------------------
 
-DB_HOST = "localhost"     # En tu portátil: localhost
-DB_PORT = 3306
-DB_NAME = "era5_madrid"
-DB_USER = "era5_user"
-DB_PASS = "SolarMap67"    # Contraseña del usuario del proyecto
+DB_HOST = os.getenv("DB_HOST", "localhost") # En tu portátil: localhost
+DB_PORT = int(os.getenv("DB_PORT", 3306))
+DB_NAME = os.getenv("DB_NAME", "era5_madrid")
+DB_USER = os.getenv("DB_USER", "era5_user")
+DB_PASS = os.getenv("DB_PASS", "SolarMap67") # Contraseña del usuario del proyecto
 
 SQLALCHEMY_URL = (
     f"mysql+pymysql://{DB_USER}:{DB_PASS}"

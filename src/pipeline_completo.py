@@ -15,6 +15,7 @@ import subprocess
 from pathlib import Path
 from datetime import datetime
 from sqlalchemy import create_engine, text
+import os
 
 # ------------------------------------------------------------
 # CONFIGURACIÓN
@@ -29,11 +30,11 @@ DESCARGA_SCRIPT = SRC_DIR / "descargar_radiacion.py"
 POTENCIAL_SCRIPT = SRC_DIR / "procesar_radiacion.py"
 LOAD_SCRIPT = SRC_DIR / "load_data.py"
 
-DB_HOST = "localhost"
-DB_PORT = 3306
-DB_NAME = "era5_madrid"
-DB_USER = "era5_user"
-DB_PASS = "SolarMap67"
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = int(os.getenv("DB_PORT", 3306))
+DB_NAME = os.getenv("DB_NAME", "era5_madrid")
+DB_USER = os.getenv("DB_USER", "era5_user")
+DB_PASS = os.getenv("DB_PASS", "SolarMap67")
 
 engine = create_engine(
     f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}",

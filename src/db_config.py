@@ -17,6 +17,7 @@ import math
 from dataclasses import dataclass, asdict
 from typing import List
 from sqlalchemy import create_engine, text
+import os
 
 # ------------------------------------------------------------
 # PARÁMETROS ESPACIALES DEL PROYECTO
@@ -33,11 +34,11 @@ TILE_KM    = 8.0
 # Base de datos MySQL local que actúa como servidor central
 # para todo el grupo.
 
-DB_HOST = "localhost"
-DB_PORT = 3306
-DB_NAME = "era5_madrid"
-DB_USER = "era5_user"
-DB_PASS = "SolarMap67"   
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = int(os.getenv("DB_PORT", 3306))
+DB_NAME = os.getenv("DB_NAME", "era5_madrid")
+DB_USER = os.getenv("DB_USER", "era5_user")
+DB_PASS = os.getenv("DB_PASS", "SolarMap67") 
 
 SQLALCHEMY_URL = (
     f"mysql+pymysql://{DB_USER}:{DB_PASS}"
