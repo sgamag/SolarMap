@@ -9,8 +9,6 @@ services:
       MYSQL_USER: era5_user
       MYSQL_PASSWORD: SolarMap67
       MYSQL_ROOT_PASSWORD: rootpassword
-    ports:
-      - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
 
