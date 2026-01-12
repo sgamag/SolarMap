@@ -12,7 +12,7 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
 
-  # Solo sirve para ejecuciones manuales o pruebas puntuales
+  # Descarga y procesamiento solo sirven para ejecuciones manuales o pruebas puntuales
   descarga:
     build:
       context: .
