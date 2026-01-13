@@ -151,7 +151,7 @@ def request_wms_image(bbox_4326, width_px: int, height_px: int, time_value: str 
 
     ctype = resp.headers.get("Content-Type", "")
     if "image" not in ctype:
-        print("⚠️ Respuesta no es una imagen. Content-Type:", ctype)
+        print(" Respuesta no es una imagen. Content-Type:", ctype)
         print(resp.text[:500])
         raise RuntimeError("El WMS no devolvió una imagen. Revisa parámetros o reduce tamaño.")
 
@@ -170,7 +170,7 @@ def save_and_show(img_bytes: bytes, output_dir: Path, base_name: str, possible_d
     out_path = output_dir / f"{base_name}{suffix}.jpg"
 
     out_path.write_bytes(img_bytes)
-    print(f"✅ Imagen guardada en: {out_path.resolve()}")
+    print(f" Imagen guardada en: {out_path.resolve()}")
 
     with Image.open(io.BytesIO(img_bytes)) as im:
         im = im.convert("RGB")
@@ -193,7 +193,7 @@ def main():
     width_px, height_px = compute_dimensions_px(CUT_WIDTH_M, CUT_HEIGHT_M, M_PER_PX)
 
     # 1) Detectar la última TIME disponible del WMS (si existe)
-    print("🕒 Buscando TIME más reciente en GetCapabilities…")
+    print(" Buscando TIME más reciente en GetCapabilities…")
     latest_time = None
     try:
         latest_time = get_latest_time_from_capabilities(WMS_URL, LAYER)
