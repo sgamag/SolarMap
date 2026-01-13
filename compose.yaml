@@ -1,59 +1,80 @@
 services:
-  db_config:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
-    container_name: solarmap_db_config
-    volumes:
-      - .:/app
-    working_dir: /app/src
-    command: python db_config.py
 
+  mysql:
+    image: mysql:8.0
+    container_name: solarmap_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: era5_madrid
+      MYSQL_USER: era5_user
+      MYSQL_PASSWORD: SolarMap67
+      MYSQL_ROOT_PASSWORD: rootpassword
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  # Descarga y procesamiento solo sirven para ejecuciones manuales o pruebas puntuales
   descarga:
     build:
       context: .
       dockerfile: docker/Dockerfile
+    container_name: solarmap_descarga
     volumes:
       - ./.cdsapirc:/root/.cdsapirc:ro
       - ./src:/app/src
       - ./data:/app/data
-    entrypoint: ["python", "-u", "/app/src/descargar_radiacion.py"]
+    working_dir: /app/src
+    command: python descargar_radiacion.py
 
-
-  #descarga:
-   # build:
-    #  context: .
-     # dockerfile: docker/Dockerfile
-    #container_name: solarmap_descarga
-    #volumes:
-     # - .:/app
-      #- /Users/macbook/.cdsapirc:/root/.cdsapirc:ro
-    #working_dir: /app/src
-    #command: python descargar_radiacion.py
-
-  limpieza_carga:
+  procesamiento:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    container_name: solarmap_limpieza_carga
+    container_name: solarmap_procesamiento
     volumes:
-      - .:/app
+      - ./src:/app/src
+      - ./data:/app/data
     working_dir: /app/src
-    command: bash -lc "python procesar_radiacion.py && python db_config.py"
+    command: python procesar_radiacion.py
+  
+  sql_worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: solarmap_sql_worker
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+      - ./.cdsapirc:/root/.cdsapirc:ro
+    working_dir: /app/src
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: era5_madrid
+      DB_USER: era5_user
+      DB_PASS: SolarMap67
+    depends_on:
+      - mysql
 
   api_mapa:
     build:
       context: .
       dockerfile: Dockerfile.api_mapa
+    container_name: solarmap_api_mapa
     ports:
       - "8000:8000"
     working_dir: /app/src
+    depends_on:
+      - mysql
 
   web_mapa:
     build:
       context: .
       dockerfile: Dockerfile.web_mapa
+    container_name: solarmap_web_mapa
     ports:
       - "8080:80"
     depends_on:
       - api_mapa
+
+volumes:
+  mysql_data:

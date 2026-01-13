@@ -1,5 +1,5 @@
 # ============================================================
-# VISUALIZACIÓN Y VALIDACIÓN DE LA BASE DE DATOS SQLite
+# VISUALIZACIÓN Y VALIDACIÓN DE LA BASE DE DATOS MYSQL
 #
 # Este script sirve para:
 # - Conectarse a la base de datos del proyecto
@@ -12,40 +12,44 @@
 # NO modifica la base de datos.
 # ============================================================
 
-import sqlite3
 import pandas as pd
-from pathlib import Path
+from sqlalchemy import create_engine, text
+import os
 
 # ============================================================
-# RUTA DE LA BASE DE DATOS
+# CONFIGURACIÓN DE CONEXIÓN A MYSQL
 # ============================================================
 
-DB_PATH = Path("src/BaseDeDatos/era5_madrid.db")
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = int(os.getenv("DB_PORT", 3306))
+DB_NAME = os.getenv("DB_NAME", "era5_madrid")
+DB_USER = os.getenv("DB_USER", "era5_user")
+DB_PASS = os.getenv("DB_PASS", "SolarMap67")
 
-if not DB_PATH.exists():
-    print(f"No se encontró la base de datos en {DB_PATH.resolve()}")
-    print("Ejecuta primero 'python src/db_setup.py' para crearla.")
-    exit(1)
+SQLALCHEMY_URL = (
+    f"mysql+pymysql://{DB_USER}:{DB_PASS}"
+    f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+)
 
-print(f"Conectando a la base de datos: {DB_PATH.resolve()}")
+print("Conectando a la base de datos MySQL...")
 
-# ============================================================
-# CONEXIÓN A SQLITE
-# ============================================================
-
-conn = sqlite3.connect(DB_PATH)
+engine = create_engine(SQLALCHEMY_URL, future=True)
 
 # ============================================================
 # OBTENER TABLAS EXISTENTES
 # ============================================================
 
 tablas = pd.read_sql_query(
-    "SELECT name FROM sqlite_master WHERE type='table';",
-    conn
+    "SHOW TABLES;",
+    engine
 )
 
+# MySQL devuelve el nombre de la columna como el nombre de la BD
+col_tablas = tablas.columns[0]
+nombres_tablas = tablas[col_tablas].tolist()
+
 print("\nTablas existentes en la base de datos:")
-print(tablas)
+print(nombres_tablas)
 
 # ============================================================
 # FUNCIÓN AUXILIAR PARA INSPECCIONAR UNA TABLA
@@ -67,7 +71,7 @@ def inspeccionar_tabla(nombre_tabla: str, n_filas: int = 5):
     # Número de filas
     df_count = pd.read_sql_query(
         f"SELECT COUNT(*) AS filas FROM {nombre_tabla};",
-        conn
+        engine
     )
     n_rows = df_count.loc[0, "filas"]
     print(f"Número de filas: {n_rows}")
@@ -75,7 +79,7 @@ def inspeccionar_tabla(nombre_tabla: str, n_filas: int = 5):
     # Cargar una muestra de la tabla
     df = pd.read_sql_query(
         f"SELECT * FROM {nombre_tabla} LIMIT {n_filas};",
-        conn
+        engine
     )
 
     print(f"Número de columnas: {df.shape[1]}")
@@ -89,16 +93,15 @@ def inspeccionar_tabla(nombre_tabla: str, n_filas: int = 5):
         print("\nEstadísticos básicos (describe):")
         df_full = pd.read_sql_query(
             f"SELECT * FROM {nombre_tabla};",
-            conn
+            engine
         )
         print(df_full[columnas_numericas].describe())
 
-        # Estadísticos adicionales relevantes
         print("\nEstadísticos adicionales:")
         for col in columnas_numericas:
             print(f"\nColumna: {col}")
-            print(f"  Media:     {df_full[col].mean():.4f}")
-            print(f"  Mediana:   {df_full[col].median():.4f}")
+            print(f"  Media:        {df_full[col].mean():.4f}")
+            print(f"  Mediana:      {df_full[col].median():.4f}")
             print(f"  Percentil 90: {df_full[col].quantile(0.90):.4f}")
             print(f"  Percentil 95: {df_full[col].quantile(0.95):.4f}")
     else:
@@ -107,8 +110,6 @@ def inspeccionar_tabla(nombre_tabla: str, n_filas: int = 5):
 # ============================================================
 # INSPECCIÓN DE CADA TABLA RELEVANTE
 # ============================================================
-
-nombres_tablas = tablas["name"].tolist()
 
 if "zonas" in nombres_tablas:
     inspeccionar_tabla("zonas")
@@ -119,9 +120,4 @@ if "era5_data" in nombres_tablas:
 if "potencial_tile_resumen" in nombres_tablas:
     inspeccionar_tabla("potencial_tile_resumen")
 
-# ============================================================
-# CIERRE DE CONEXIÓN
-# ============================================================
-
-conn.close()
-print("\nConexión cerrada correctamente.")
+print("\nInspección completada correctamente.")
