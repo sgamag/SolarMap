@@ -26,9 +26,7 @@ folium.TileLayer(
 
 folium.LayerControl().add_to(mapa)
 
-# ---------------------------------------------------
-# 📷 Script de html2canvas
-# ---------------------------------------------------
+#Script de html2canvas
 html2canvas_script = """
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 """
@@ -36,9 +34,9 @@ mapa.get_root().header.add_child(folium.Element(html2canvas_script))
 
 nombre_mapa = mapa.get_name()
 
-# ---------------------------------------------------
+
 # BOTÓN DE CAPTURA + ALERTA + LOADING
-# ---------------------------------------------------
+
 boton_captura = f"""
 <style>
 html, body {{
