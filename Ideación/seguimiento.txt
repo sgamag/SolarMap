@@ -26,12 +26,7 @@ Sprint 4: 3 dic - 16 dic
 - botón en rojo 
 - empezar memoria
 - documentar lo que tenemos hasta ahora
-
 - hacer automatico la descaraga (que detecte que estas en 2026 y descargue hasta lo ultimo que haya)
-
-
-
-hay que convertirlo en API.
 
 sprint 5: 17 dic - 7 enero
 - calculo de potencial avanzado
@@ -40,16 +35,3 @@ sprint 5: 17 dic - 7 enero
 - automaticar la descarga
 - terminar la memoria 
 - mariadb o mysql 
-
-
-
-Sugerencia para otro sprint
-- Cargar imagenes 
-- Empezar con el entrenamiento
-- Mejora de la prediccion del potencial solar
-
-diseñar:
-que columnas necesito y que estrcutura necesito
-
-hacer filtro a nivel municipio
-los 25 años de 
