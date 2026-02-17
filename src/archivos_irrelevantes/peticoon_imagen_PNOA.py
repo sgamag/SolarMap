@@ -1,11 +1,4 @@
-"""
-Descarga y muestra una ortofoto PNOA (IGN/CNIG) centrada en la UEM con "más zoom",
-guardando en 'imagenes/'. Ahora detecta automáticamente la FECHA más reciente disponible
-(vía WMS GetCapabilities -> Dimension/Extent 'time') y la usa en GetMap/GetFeatureInfo.
 
-Requisitos:
-    pip install requests pillow matplotlib
-"""
 
 import io
 import re
@@ -164,7 +157,7 @@ def save_and_show(img_bytes: bytes, output_dir: Path, base_name: str, possible_d
     y la muestra en pantalla.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
-    # Usa fecha detectada o, si no, la TIME usada (puede ser un año/rango)
+    # Usa fecha detectada o, si no, la TIME usada
     tag = possible_date
     suffix = f"_{tag}" if tag else ""
     out_path = output_dir / f"{base_name}{suffix}.jpg"
