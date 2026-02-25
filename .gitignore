@@ -36,7 +36,6 @@ previews/
 *.nc
 *.nc4
 *.json
-*.txt
 
 # Archivos ocultos del sistema o IDE
 .DS_Store

@@ -1,0 +1,144 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: solarmap_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: era5_madrid
+      MYSQL_USER: era5_user
+      MYSQL_PASSWORD: SolarMap67
+      MYSQL_ROOT_PASSWORD: rootpassword
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - solarmap_net
+
+  # ===== HDFS (Data Lake) =====
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: solarmap_namenode
+    restart: unless-stopped
+    environment:
+      - CLUSTER_NAME=solarmap
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:8020
+    ports:
+      - "9870:9870"   # UI NameNode -> http://localhost:9870
+    volumes:
+      - namenode_data:/hadoop/dfs/name
+      - ./docker/hdfs/init:/init
+    networks:
+      - solarmap_net
+
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: solarmap_datanode
+    restart: unless-stopped
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:8020
+    depends_on:
+      - namenode
+    ports:
+      - "9864:9864"   # UI DataNode (opcional)
+    volumes:
+      - datanode_data:/hadoop/dfs/data
+    networks:
+      - solarmap_net
+
+  # Descarga y procesamiento: ejecuciones manuales o pruebas puntuales
+  descarga:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: solarmap_descarga
+    volumes:
+      - ./.cdsapirc:/root/.cdsapirc:ro
+      - ./src:/app/src
+      - ./data:/app/data
+    working_dir: /app/src
+    command: python descargar_radiacion.py
+    networks:
+      - solarmap_net
+
+  procesamiento:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: solarmap_procesamiento
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+    working_dir: /app/src
+    command: python procesar_radiacion.py
+    networks:
+      - solarmap_net
+
+  sql_worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: solarmap_sql_worker
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+      - ./.cdsapirc:/root/.cdsapirc:ro
+    working_dir: /app/src
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: era5_madrid
+      DB_USER: era5_user
+      DB_PASS: SolarMap67
+
+      # HDFS
+      HDFS_URL: hdfs://namenode:8020
+      DATALAKE_ROOT: /datalake
+    depends_on:
+      - mysql
+      - namenode
+      - datanode
+    networks:
+      - solarmap_net
+
+  api_mapa:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api_mapa
+    container_name: solarmap_api_mapa
+    ports:
+      - "8000:8000"
+    working_dir: /app/src
+    depends_on:
+      - mysql
+      - namenode
+      - datanode
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: era5_madrid
+      DB_USER: era5_user
+      DB_PASS: SolarMap67
+
+      HDFS_URL: hdfs://namenode:8020
+      DATALAKE_ROOT: /datalake
+    networks:
+      - solarmap_net
+
+  web_mapa:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web_mapa
+    container_name: solarmap_web_mapa
+    ports:
+      - "8080:80"
+    depends_on:
+      - api_mapa
+    networks:
+      - solarmap_net
+
+networks:
+  solarmap_net:
+
+volumes:
+  mysql_data:
+  namenode_data:
+  datanode_data:

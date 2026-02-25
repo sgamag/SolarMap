@@ -1,0 +1,149 @@
+URL revisar hdfs
+http://localhost:9870
+
+URL revisar directorios
+http://localhost:9870/explorer.html#/datalake/datos
+
+BIG DATA PROJECT – MANUAL OPERATIVO HDFS + DOCKER
+
+========================================
+
+LEVANTAR INFRAESTRUCTURA
+========================================
+
+Arrancar todos los servicios:
+
+docker compose up -d
+
+Reconstruir imágenes (si cambias Dockerfile):
+
+docker compose up -d --build
+
+Parar contenedores (SIN borrar datos):
+
+docker compose down
+
+========================================
+2) ACCEDER AL NAMENODE
+
+Entrar al contenedor:
+
+docker exec -it solarmap_namenode bash
+
+Salir del contenedor:
+
+exit
+
+========================================
+3) EJECUTAR SCRIPTS DEL DATALAKE
+
+Ejecutar Bronze (desde dentro del contenedor):
+
+/init/create-datalake-bronze.sh
+
+Ejecutar Silver:
+
+/init/create-datalake-silver.sh
+
+Ejecutar directamente sin entrar:
+
+docker exec -it solarmap_namenode bash -c "/init/create-datalake-bronze.sh"
+
+========================================
+4) COMPROBAR ESTRUCTURA EN HDFS
+
+Ver carpeta Bronze:
+
+docker exec -it solarmap_namenode hdfs dfs -ls /datalake/datos/bronze
+
+Ver estructura completa recursiva:
+
+docker exec -it solarmap_namenode hdfs dfs -ls -R /datalake/datos/bronze/grib
+
+Contar carpetas y ficheros:
+
+docker exec -it solarmap_namenode hdfs dfs -count /datalake/datos/bronze/grib
+
+========================================
+5) SUBIR Y BORRAR ARCHIVOS
+
+Subir archivo a HDFS:
+
+docker exec -it solarmap_namenode hdfs dfs -put archivo.grib /datalake/datos/bronze/grib/tile01/2000
+
+Borrar archivo:
+
+docker exec -it solarmap_namenode hdfs dfs -rm /ruta/archivo
+
+Borrar carpeta completa:
+
+docker exec -it solarmap_namenode hdfs dfs -rm -r /ruta/carpeta
+
+========================================
+6) SAFE MODE
+
+Comprobar si HDFS está en Safe Mode:
+
+docker exec -it solarmap_namenode hdfs dfsadmin -safemode get
+
+Quitar Safe Mode:
+
+docker exec -it solarmap_namenode hdfs dfsadmin -safemode leave
+
+========================================
+7) PROBLEMAS COMUNES
+
+ERROR: hdfs: command not found
+
+Solución:
+Entrar primero al contenedor y ejecutar el script desde dentro:
+
+docker exec -it solarmap_namenode bash
+/init/create-datalake-bronze.sh
+
+Script se queda en "Waiting for HDFS"
+
+Solución:
+Eliminar el bloque until hdfs dfs -ls /
+Si los contenedores ya están levantados no es necesario.
+
+Script no crea carpetas
+
+Probar mkdir manual:
+
+docker exec -it solarmap_namenode hdfs dfs -mkdir -p /datalake/test
+
+========================================
+8) INTERFAZ WEB HDFS
+
+Abrir en navegador:
+
+http://localhost:9870
+
+========================================
+9) REGLAS IMPORTANTES
+
+NO usar "docker compose down -v" salvo que quieras borrar todo.
+
+Los volúmenes Docker protegen los datos.
+
+mkdir -p no borra datos existentes.
+
+Los scripts pueden ejecutarse varias veces sin romper nada.
+
+Si cambias Dockerfile usar --build.
+
+========================================
+FLUJO NORMAL DE TRABAJO
+
+docker compose up -d
+
+Ejecutar scripts Bronze/Silver
+
+Subir datos
+
+Verificar con hdfs dfs -ls
+
+Continuar con procesamiento / SQL / Power BI
+
+==================================================
