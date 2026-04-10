@@ -64,8 +64,14 @@ Contar carpetas y ficheros:
 
 docker exec -it solarmap_namenode hdfs dfs -count /datalake/datos/bronze/grib
 
+Revisar estructura completa:
+
+docker exec -it solarmap_namenode hdfs dfs -ls -R /datalake
+
 ========================================
 5) SUBIR Y BORRAR ARCHIVOS
+
+(Ejecutar desde el contenedor)
 
 Subir archivo a HDFS:
 

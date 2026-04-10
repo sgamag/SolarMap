@@ -22,14 +22,16 @@ for tile in $(seq -w 1 36); do
   done
 done
 
+echo "==> Creating CSV tile structure..."
+
 imagBASE="/datalake/datos/silver/Imagenes"
 
 hdfs dfs -mkdir -p $imagBASE
 
-hdfs dfs -mkdir -p $imagBASE/Entreno/Complex_data
-hdfs dfs -mkdir -p $imagBASE/Entreno/Gable_hip_other
-hdfs dfs -mkdir -p $imagBASE/Entreno/Bugs
-hdfs dfs -mkdir -p $imagBASE/Entreno/Flat_Data
+hdfs dfs -rm -r $imagBASE/Entreno/Complex_data
+hdfs dfs -rm -r $imagBASE/Entreno/Gable_hip_other
+hdfs dfs -rmdir -r $imagBASE/Entreno/Bugs
+hdfs dfs -rmdir -r $imagBASE/Entreno/Flat_Data
 
 imagBASE="/datalake/datos/silver/Imagenes/Produccion"
 
