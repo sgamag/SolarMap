@@ -47,3 +47,7 @@ previews/
 
 mapa.html
 src/mapa.html
+
+# --- NUEVO: Ignorar carpetas masivas de Copernicus ---
+**/data_Ingesta/
+**/csv_potencial/
