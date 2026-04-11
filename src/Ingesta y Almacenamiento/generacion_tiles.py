@@ -133,6 +133,35 @@ def build_tiles(lat0: float, lon0: float,
     return tiles
 
 # ------------------------------------------------------------
+# FUNCIÓN PUENTE PARA LA BASE DE DATOS LORCA
+# ------------------------------------------------------------
+def obtener_datos_tiles():
+    """
+    Ejecuta la construcción de tiles y convierte los objetos 
+    en diccionarios listos para que poblar_dimensiones.py los inserte en MySQL.
+    """
+    # 1. Calculamos los tiles usando las variables de arriba
+    tiles_objetos = build_tiles(CENTER_LAT, CENTER_LON, RADIUS_KM, TILE_KM)
+    
+    # 2. Los transformamos al formato que le gusta a tu Script 2
+    lista_diccionarios = []
+    for t in tiles_objetos:
+        lista_diccionarios.append({
+            'id_zona': t.id_zona,
+            'municipio': t.municipio,
+            'provincia': t.provincia,
+            'altitud': 667.0, # Altitud media de Madrid por defecto para que no falle Lorca
+            'lat_center': t.lat_center,
+            'lon_center': t.lon_center,
+            'norte_lat_max': t.norte_lat_max,
+            'sur_lat_min': t.sur_lat_min,
+            'este_lon_max': t.este_lon_max,
+            'oeste_lon_min': t.oeste_lon_min
+        })
+        
+    return lista_diccionarios
+
+# ------------------------------------------------------------
 # PRUEBA RÁPIDA
 # ------------------------------------------------------------
 if __name__ == "__main__":

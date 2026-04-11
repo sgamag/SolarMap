@@ -1,88 +1,119 @@
 # ==============================================================================
-# SCRIPT 3: INGESTA MASIVA DE DATOS CLIMÁTICOS (SIN PANDAS)
+# SCRIPT 3: INGESTA MASIVA DE CLIMA (BÚSQUEDA RECURSIVA Y TRADUCTOR UNIVERSAL)
 # ==============================================================================
 
-import pymysql
+import os
 import csv
+import mysql.connector
 from datetime import datetime
 
-def ingestar_clima(cursor, ruta_csv):
-    print(f"Abriendo el archivo {ruta_csv} en modo lectura secuencial...")
+def ingestar_archivos_clima(cursor, conexion):
+    # RUTA ABSOLUTA (La que comprobamos que funciona)
+    carpeta_csv = r"C:\Users\Javier\Desktop\BigData\ProyectoBigData\src\Ingesta y Almacenamiento\data_Ingesta\csv_potencial" 
     
-    try:
-        # Usamos encoding='utf-8' por si hay algún carácter raro en el archivo
-        with open(ruta_csv, mode='r', encoding='utf-8') as archivo:
+    if not os.path.exists(carpeta_csv):
+        print(f"❌ Error: No se encuentra la carpeta en la ruta:\n{carpeta_csv}")
+        return
+
+    # 1. EL SABUESO (Búsqueda recursiva en todas las subcarpetas)
+    archivos_csv_completos = []
+    for raiz, directorios, archivos in os.walk(carpeta_csv):
+        for archivo in archivos:
+            if archivo.endswith('.csv'):
+                # Guardamos la ruta entera hasta el archivo
+                archivos_csv_completos.append(os.path.join(raiz, archivo))
+                
+    archivos_csv_completos.sort()
+    
+    if len(archivos_csv_completos) == 0:
+        print(f"⚠️ La carpeta existe, pero el sabueso no encontró ningún .csv en sus subcarpetas.")
+        return
+
+    total_filas_global = 0
+
+    sql_insert = """
+        INSERT IGNORE INTO fact_clima_diario (
+            id_fecha, id_zona, id_hora, 
+            temperatura_max_c, radiacion_solar, cobertura_nubes, velocidad_viento, potencial_solar
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    """
+
+    print(f"🚀 Iniciando ingesta. Se han encontrado {len(archivos_csv_completos)} archivos CSV.")
+
+    for ruta_completa in archivos_csv_completos:
+        nombre_archivo = os.path.basename(ruta_completa)
+        print(f"📂 Abriendo: {nombre_archivo}...")
+        
+        lote_datos = []
+        filas_archivo_actual = 0
+        
+        with open(ruta_completa, mode='r', encoding='utf-8') as f:
+            lector = csv.DictReader(f)
             
-            # DictReader lee la primera línea como cabeceras y convierte cada fila en un diccionario
-            # Cambia delimiter=';' si tu Excel al guardarlo como CSV usa punto y coma
-            lector_csv = csv.DictReader(archivo, delimiter=',')
+            for fila in lector:
+                try:
+                    # 2. EL TRADUCTOR UNIVERSAL DE FECHAS
+                    fecha_texto = fila['valid_time']
+                    fecha_obj = None
+                    
+                    # Lista de todos los formatos posibles en los CSV
+                    formatos_posibles = [
+                        '%d/%m/%Y %H:%M',     # Ej: 01/01/2000 12:00
+                        '%Y-%m-%d %H:%M:%S',  # Ej: 2005-01-12 18:00:00
+                        '%Y-%m-%d %H:%M',     # Ej: 2005-01-12 18:00
+                        '%d/%m/%Y %H:%M:%S'   # Ej: 01/01/2000 12:00:00
+                    ]
+                    
+                    for formato in formatos_posibles:
+                        try:
+                            fecha_obj = datetime.strptime(fecha_texto, formato)
+                            break # Si acierta el formato, sale del bucle
+                        except ValueError:
+                            continue # Si falla, prueba el siguiente
+                            
+                    if fecha_obj is None:
+                        print(f"⚠️ Fecha irreconocible: {fecha_texto} en {nombre_archivo}")
+                        continue # Salta esta fila y sigue con la siguiente
+                    
+                    # Extraemos las llaves para Lorca
+                    id_fecha = int(fecha_obj.strftime('%Y%m%d')) 
+                    id_hora = fecha_obj.hour                     
+                    
+                    # EXTRACCIÓN DE MÉTRICAS
+                    id_zona = fila['tile_id']
+                    temperatura = float(fila['t2m_C'])
+                    radiacion = float(fila['ssrd_kWhm2'])
+                    nubes = float(fila['tcc'])
+                    potencial = float(fila['potencial_0_1'])
+                    velocidad_viento = None 
+                    
+                    lote_datos.append((
+                        id_fecha, id_zona, id_hora,
+                        temperatura, radiacion, nubes, velocidad_viento, potencial
+                    ))
+                    
+                    filas_archivo_actual += 1
+                    total_filas_global += 1
+                    
+                    # GUARDADO POR LOTES
+                    if len(lote_datos) >= 5000:
+                        cursor.executemany(sql_insert, lote_datos)
+                        lote_datos = [] 
+                        
+                except Exception as e:
+                    print(f"⚠️ Error leyendo una fila en {nombre_archivo}: {e}")
+                    continue
             
-            datos_a_insertar = []
-            tamano_lote = 10000
-            filas_totales_insertadas = 0
-            
-            # Sentencia SQL
-            sql = """
-                INSERT IGNORE INTO fact_clima_diario (
-                    id_fecha, id_zona, id_hora, temperatura_max_c, radiacion_solar, cobertura_nubes, velocidad_viento
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """
-
-            print(f"Iniciando volcado en Lorca en lotes de {tamano_lote}...")
-
-            for fila in lector_csv:
-                # =================================================================
-                # ⚠️ ZONA DE MAPEO: ADAPTA LOS NOMBRES A LAS CABECERAS DE TU CSV
-                # =================================================================
-                
-                # 1. Función de limpieza: Convierte celdas vacías en NULL para la base de datos
-                def limpiar_dato(valor, tipo):
-                    if not valor or valor.strip() == "":
-                        return None
-                    return tipo(valor)
-
-                # 2. Fechas e IDs
-                fecha_str = fila['Fecha_CSV'] # Cambiar 'Fecha_CSV' por tu nombre real
-                fecha_obj = datetime.strptime(fecha_str, '%Y-%m-%d')
-                id_fecha = int(fecha_obj.strftime('%Y%m%d'))
-                
-                # 3. Casteo manual (como no hay Pandas, tenemos que decirle qué es número y qué es texto)
-                id_zona = limpiar_dato(fila['Zona_ID'], str) 
-                id_hora = limpiar_dato(fila['Hora_CSV'], int)
-                
-                # 4. Métricas climáticas (Ojo: en Python los decimales van con punto, no con coma)
-                temp_max = limpiar_dato(fila['Temp_Max'], float)
-                radiacion = limpiar_dato(fila['Radiacion_Solar'], float)
-                nubes = limpiar_dato(fila['Porcentaje_Nubes'], float)
-                viento = limpiar_dato(fila['Velocidad_Viento'], float)
-                
-                # =================================================================
-
-                # Añadimos la fila limpia a nuestro lote
-                datos_a_insertar.append((
-                    id_fecha, id_zona, id_hora, temp_max, radiacion, nubes, viento
-                ))
-
-                # Si nuestro lote llega a 10.000, lo enviamos a Lorca y vaciamos la mochila
-                if len(datos_a_insertar) >= tamano_lote:
-                    cursor.executemany(sql, datos_a_insertar)
-                    filas_totales_insertadas += len(datos_a_insertar)
-                    print(f"Progreso: {filas_totales_insertadas} filas insertadas...")
-                    datos_a_insertar.clear() # Vaciamos la lista para no saturar la RAM
-
-            # Cuando termina el bucle, es posible que queden filas en la mochila (ej. las últimas 3.400)
-            if len(datos_a_insertar) > 0:
-                cursor.executemany(sql, datos_a_insertar)
-                filas_totales_insertadas += len(datos_a_insertar)
-                
-            print(f"¡Éxito! Ingesta completada. Se han guardado {filas_totales_insertadas} registros.")
-
-    except FileNotFoundError:
-        print(f"❌ Error: No se ha encontrado el archivo en la ruta: {ruta_csv}")
-    except KeyError as e:
-        print(f"❌ Error: No se encuentra la columna {e} en tu archivo CSV. Revisa las mayúsculas/minúsculas en la ZONA DE MAPEO.")
-    except Exception as e:
-        print(f"❌ Error crítico en la fila {filas_totales_insertadas}: {e}")
+            # Guardamos lo que haya sobrado al final del archivo
+            if lote_datos:
+                cursor.executemany(sql_insert, lote_datos)
+        
+        print(f"✅ Archivo completado: {filas_archivo_actual} registros.")
+        
+        # COMMIT AUTOMÁTICO
+        conexion.commit() 
+        
+    print(f"\n🚀 ¡INGESTA TOTAL COMPLETADA! Se han procesado y guardado {total_filas_global} registros.")
 
 def main():
     db_host = "10.151.30.2"
@@ -91,38 +122,22 @@ def main():
     db_pass = "Mar123Qz" 
     db_name = "bd_rvm_solar_map"
 
-    # Asegúrate de poner el nombre exacto de tu archivo y que esté en la misma carpeta
-    ARCHIVO_CSV = "datos_clima.csv" 
-
-    print("Conectando a Lorca para ingesta masiva...")
-
     try:
-        conexion = pymysql.connect(
-            host=db_host,
-            port=db_port,
-            user=db_user,
-            password=db_pass,
-            database=db_name
+        conexion = mysql.connector.connect(
+            host=db_host, port=db_port, user=db_user, 
+            password=db_pass, database=db_name, ssl_disabled=True
         )
-
-        if conexion.open:
+        if conexion.is_connected():
             cursor = conexion.cursor()
+            ingestar_archivos_clima(cursor, conexion)
             
-            ingestar_clima(cursor, ARCHIVO_CSV)
-            
-            # ¡Importantísimo! Si no hacemos commit, la base de datos olvida todo
-            conexion.commit()
-            print("=========================================================")
-            print("Los datos han sido confirmados y guardados en el disco duro.")
-            print("=========================================================")
-
-    except Exception as e:
-        print(f"Error de conexión a la base de datos: {e}")
-
+    except mysql.connector.Error as error:
+        print(f"❌ Error crítico en Lorca: {error}")
     finally:
-        if 'conexion' in locals() and conexion.open:
+        if 'conexion' in locals() and conexion.is_connected():
             cursor.close()
             conexion.close()
+            print("=========================================================")
             print("Conexión cerrada.")
 
 if __name__ == "__main__":

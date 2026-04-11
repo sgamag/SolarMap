@@ -1,56 +1,32 @@
 # ==============================================================================
-# SCRIPT 1: CREACIÓN DE LA ARQUITECTURA DE DATOS EN LORCA (NUBE)
-# ==============================================================================
-# Objetivo: 
-# Conectarse a la base de datos de la universidad y crear todas las tablas (cajones)
-# vacías, listas para recibir datos. Junta la parte del Clima y la parte de la Web.
+# SCRIPT 1: CREACIÓN DE LA ARQUITECTURA DE DATOS EN LORCA (NUBE) - VERSIÓN BLINDADA
 # ==============================================================================
 
 import os
 import mysql.connector
 
 def main():
-    # --------------------------------------------------------
-    # 1. CONFIGURACIÓN DE CONEXIÓN A LA NUBE (LORCA)
-    # --------------------------------------------------------
     db_host = "10.151.30.2"
     db_port = 3306
     db_user = "bd_rvm_solar_map"
-    db_pass = os.getenv("DB_PASS", "Mar123Qz") # Tu contraseña de DBeaver
+    db_pass = os.getenv("DB_PASS", "Mar123Qz") 
     db_name = "bd_rvm_solar_map"
 
     try:
-        # Nos conectamos a la base de datos
         conexion = mysql.connector.connect(
-            host=db_host,
-            port=db_port,
-            user=db_user,
-            password=db_pass,
-            database=db_name,
-            ssl_disabled=True
+            host=db_host, port=db_port, user=db_user,
+            password=db_pass, database=db_name, ssl_disabled=True
         )
 
         if conexion.is_connected():
             print("1. ¡Conectado a Lorca con éxito!")
             cursor = conexion.cursor()
-
-            # --------------------------------------------------------
-            # 2. DESACTIVAR SEGUROS TEMPORALMENTE
-            # --------------------------------------------------------
-            # Apagamos las "claves foráneas" un segundo para poder crear las
-            # tablas en cualquier orden sin que MySQL se queje.
             cursor.execute("SET FOREIGN_KEY_CHECKS=0;")
 
-            # --------------------------------------------------------
-            # 3. EL CÓDIGO SQL: CREACIÓN DE TABLAS (DDL)
-            # --------------------------------------------------------
-            # Todas las sentencias SQL guardadas en un texto largo
             SQL_TABLAS = """
             -- ========================================================
-            -- BLOQUE A: TABLAS DIMENSIÓN (Los filtros y agrupadores)
+            -- BLOQUE A: TABLAS DIMENSIÓN
             -- ========================================================
-
-            -- 1. Zonas: La cuadrícula geográfica de Madrid
             CREATE TABLE IF NOT EXISTS dim_zona (
                 id_zona VARCHAR(32) PRIMARY KEY,        
                 municipio VARCHAR(100) NOT NULL,        
@@ -65,11 +41,10 @@ def main():
                 INDEX idx_limites_mapa (sur_lat_min, norte_lat_max, oeste_lon_min, este_lon_max)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-            -- 2. Fecha: Nuestro calendario personalizado
             CREATE TABLE IF NOT EXISTS dim_fecha (
-                id_fecha INT PRIMARY KEY,               -- Ej: 20260228
+                id_fecha INT PRIMARY KEY,               
                 fecha_completa DATE NOT NULL,           
-                anio SMALLINT NOT NULL,                 
+                año SMALLINT NOT NULL,                  
                 trimestre TINYINT NOT NULL,             
                 mes TINYINT NOT NULL,                   
                 nombre_mes VARCHAR(20) NOT NULL,        
@@ -82,20 +57,18 @@ def main():
                 es_horario_verano BOOLEAN NOT NULL      
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-            -- 3. Hora: El reloj para los perfiles horarios
             CREATE TABLE IF NOT EXISTS dim_hora (
-                id_hora INT PRIMARY KEY,                -- Ej: 1430
+                id_hora INT PRIMARY KEY,                
                 hora_del_dia TINYINT NOT NULL,          
                 minuto_del_dia TINYINT NOT NULL,        
                 hora_formato_24h VARCHAR(5) NOT NULL,   
                 hora_formato_12h VARCHAR(8) NOT NULL,   
-                tramo_horario VARCHAR(20) NOT NULL      -- Mañana, Tarde, Noche
+                tramo_horario VARCHAR(20) NOT NULL      
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-            -- 4. Usuario (WEB): La gente que entra a la página
             CREATE TABLE IF NOT EXISTS dim_usuario (
                 id_usuario VARCHAR(64) PRIMARY KEY,     
-                tipo_usuario VARCHAR(50) NOT NULL,      -- Anonimo, Premium...
+                tipo_usuario VARCHAR(50) NOT NULL,      
                 nombre_completo VARCHAR(50) NOT NULL,
                 edad INT NOT NULL,
                 cp_usuario INT NOT NULL,
@@ -103,18 +76,16 @@ def main():
                 fecha_primer_acceso DATE                
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-            -- 5. Sesión (WEB): El parche arreglado. La visita concreta del usuario.
             CREATE TABLE IF NOT EXISTS dim_sesion (
                 id_sesion VARCHAR(64) PRIMARY KEY,      
                 id_usuario VARCHAR(64) NOT NULL,        
                 fecha_inicio DATETIME NOT NULL,         
-                dispositivo VARCHAR(50),                -- Móvil, PC...
-                navegador VARCHAR(50),                  -- Chrome, Safari...
+                dispositivo VARCHAR(50),                
+                navegador VARCHAR(50),                  
                 ip_origen VARCHAR(50),                  
                 CONSTRAINT fk_sesion_usuario FOREIGN KEY (id_usuario) REFERENCES dim_usuario(id_usuario)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-            -- 6. Eventos (WEB): Los botones que pueden pulsar
             CREATE TABLE IF NOT EXISTS dim_tipo_evento (
                 id_tipo_evento VARCHAR(64) PRIMARY KEY, 
                 fase VARCHAR(50) NOT NULL,              
@@ -123,7 +94,6 @@ def main():
                 accion_fase VARCHAR(100) NOT NULL       
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-            -- 7. Tejados: Físicos y técnicos
             CREATE TABLE IF NOT EXISTS dim_caracteristicas_tejado (
                 id_caracteristica INT AUTO_INCREMENT PRIMARY KEY,
                 tamano_categoria VARCHAR(50) NOT NULL,  
@@ -131,14 +101,12 @@ def main():
                 viabilidad_solar VARCHAR(20) NOT NULL   
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-            -- 8. Consumo: Perfiles de gasto eléctrico
             CREATE TABLE IF NOT EXISTS dim_perfil_consumo (
                 id_perfil INT AUTO_INCREMENT PRIMARY KEY,
                 tipo_usuario VARCHAR(50) NOT NULL,      
                 tramo_horario_pico VARCHAR(50) NOT NULL 
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-            -- 9. Economía: Inflación y precios
             CREATE TABLE IF NOT EXISTS dim_escenario_economico (
                 id_escenario INT AUTO_INCREMENT PRIMARY KEY,
                 tipo_escenario VARCHAR(50) NOT NULL,    
@@ -147,26 +115,26 @@ def main():
 
 
             -- ========================================================
-            -- BLOQUE B: TABLAS DE HECHOS (Los números y las acciones)
+            -- BLOQUE B: TABLAS DE HECHOS
             -- ========================================================
-
-            -- HECHO 1: Clima Diario (Aquí irán tus CSVs)
             CREATE TABLE IF NOT EXISTS fact_clima_diario (
                 id_clima BIGINT AUTO_INCREMENT PRIMARY KEY,
+                id_fecha INT NOT NULL,
                 id_zona VARCHAR(32) NOT NULL,           
-                id_fecha INT NOT NULL,                  
-                radiacion_total_kwh_m2 DOUBLE,          
+                id_hora INT NOT NULL,                   
                 temperatura_max_c DOUBLE,               
-                temperatura_min_c DOUBLE,               
-                cobertura_nubes_promedio DOUBLE,        
-                horas_sol_util DOUBLE,                  
-                potencial_zona DOUBLE,                  
+                radiacion_solar DOUBLE,                 
+                cobertura_nubes DOUBLE,                 
+                velocidad_viento DOUBLE,
+                potencial_solar DOUBLE,                 
                 CONSTRAINT fk_clima_zona FOREIGN KEY (id_zona) REFERENCES dim_zona(id_zona),
                 CONSTRAINT fk_clima_fecha FOREIGN KEY (id_fecha) REFERENCES dim_fecha(id_fecha),
+                CONSTRAINT fk_clima_hora FOREIGN KEY (id_hora) REFERENCES dim_hora(id_hora),
+                -- LA REGLA DE ORO ANTIDUPLICADOS:
+                UNIQUE KEY uk_antiduplicados (id_fecha, id_zona, id_hora),
                 INDEX idx_busqueda_clima (id_zona, id_fecha)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-            -- HECHO 2: El Tracking de la Web (Los clics)
             CREATE TABLE IF NOT EXISTS fact_eventos_web (
                 id_evento BIGINT AUTO_INCREMENT PRIMARY KEY,
                 id_usuario VARCHAR(64) NOT NULL,        
@@ -189,7 +157,6 @@ def main():
                 INDEX idx_analisis_sesion (id_sesion)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4; 
 
-            -- HECHO 3: Tejados Detectados (Inteligencia Artificial)
             CREATE TABLE IF NOT EXISTS fact_tejados_detectados (
                 id_tejado BIGINT AUTO_INCREMENT PRIMARY KEY,
                 id_zona VARCHAR(32) NOT NULL,           
@@ -205,7 +172,6 @@ def main():
                 INDEX idx_busqueda_tejado_zona (id_zona)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-            -- HECHO 4: Simulación Económica (Euros y rentabilidad)
             CREATE TABLE IF NOT EXISTS fact_simulacion_roi (
                 id_simulacion BIGINT AUTO_INCREMENT PRIMARY KEY,
                 id_zona VARCHAR(32) NOT NULL,           
@@ -228,7 +194,6 @@ def main():
                 INDEX idx_busqueda_roi (id_zona, id_tejado)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-            -- HECHO 5: Perfil Horario Típico (Curvas de campana)
             CREATE TABLE IF NOT EXISTS fact_perfil_horario (
                 id_perfil_hora BIGINT AUTO_INCREMENT PRIMARY KEY,
                 id_zona VARCHAR(32) NOT NULL,           
@@ -242,31 +207,22 @@ def main():
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """
 
-            # --------------------------------------------------------
-            # 4. EJECUCIÓN MÁGICA
-            # --------------------------------------------------------
-            print("2. Construyendo la estructura de tablas en la nube...")
-            
-            # Cortamos el texto largo por los puntos y comas (;) y ejecutamos uno a uno
+            print("2. Construyendo la estructura de tablas en la nube (Versión Segura)...")
             for sentencia in SQL_TABLAS.split(";"):
-                if sentencia.strip(): # Si la frase no está en blanco
+                if sentencia.strip(): 
                     cursor.execute(sentencia)
             
-            # Volvemos a encender los seguros de la base de datos
             cursor.execute("SET FOREIGN_KEY_CHECKS=1;")
             conexion.commit()
-
-            print("3. ¡Éxito! Todas las tablas están listas y conectadas entre sí.")
+            print("3. ¡Éxito! Base de datos blindada contra duplicados.")
 
     except mysql.connector.Error as error:
         print(f"❌ Error al hablar con Lorca: {error}")
-
     finally:
-        # Cerramos la puerta al salir
         if 'conexion' in locals() and conexion.is_connected():
             cursor.close()
             conexion.close()
-            print("4. Conexión cerrada de forma segura.")
+            print("4. Conexión cerrada.")
 
 if __name__ == "__main__":
     main()

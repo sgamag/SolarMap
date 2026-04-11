@@ -1,9 +1,6 @@
 # ==============================================================================
 # SCRIPT 2: POBLADO DE TABLAS DE DIMENSIÓN (DATOS MAESTROS)
 # ==============================================================================
-# Objetivo: Llenar los "catálogos" (fechas, horas, zonas) para que la base de
-# datos tenga el contexto necesario antes de recibir el volumen masivo del clima.
-# ==============================================================================
 
 import pymysql
 import datetime
@@ -11,79 +8,68 @@ import pytz
 import holidays
 
 # Importamos tu script de geometría. 
-# Asegúrate de que el archivo generacion_tiles.py esté en la misma carpeta.
 try:
     import generacion_tiles
 except ImportError:
     print("Aviso: No se encontró el archivo generacion_tiles.py en esta carpeta.")
 
 def poblar_dim_fecha(cursor):
-    print("Generando calendario desde el anio 2000 hasta el 2030...")
+    print("Generando calendario desde el año 2000 hasta el 2030...")
     
     fecha_inicio = datetime.date(2000, 1, 1)
     fecha_fin = datetime.date(2030, 12, 31)
     
     zona_horaria = pytz.timezone('Europe/Madrid')
-    
-    # Cargamos el calendario oficial de festivos para la Comunidad de Madrid
     festivos_madrid = holidays.ES(prov='MD', years=range(2000, 2031))
     
+    # Nombres con tildes correctas gracias a utf8mb4
     nombres_meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
                      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-    nombres_dias = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"]
+    nombres_dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
     
     datos_fechas = []
     fecha_actual = fecha_inicio
     
     while fecha_actual <= fecha_fin:
-        # Generar un ID numérico como 20260407 (AnioMesDia)
         id_fecha = int(fecha_actual.strftime("%Y%m%d"))
-        anio = fecha_actual.year
+        año = fecha_actual.year  # ¡Con Ñ!
         mes = fecha_actual.month
         dia = fecha_actual.day
         
-        # Cálculos de calendario
         trimestre = (mes - 1) // 3 + 1
-        dia_semana = fecha_actual.weekday() + 1 # 1=Lunes, 7=Domingo
+        dia_semana = fecha_actual.weekday() + 1 
         es_fin_semana = True if dia_semana >= 6 else False
-        
-        # Evaluamos automáticamente si la fecha actual está en la lista de festivos de Madrid
         es_festivo = True if fecha_actual in festivos_madrid else False
         
-        # Calcular estación aproximada
         if (mes == 3 and dia >= 21) or mes in [4, 5] or (mes == 6 and dia < 21):
             estacion = "Primavera"
         elif (mes == 6 and dia >= 21) or mes in [7, 8] or (mes == 9 and dia < 23):
             estacion = "Verano"
         elif (mes == 9 and dia >= 23) or mes in [10, 11] or (mes == 12 and dia < 21):
-            estacion = "Otono"
+            estacion = "Otoño"  # ¡Con Ñ!
         else:
             estacion = "Invierno"
             
-        # Comprobar horario de verano usando pytz
-        fecha_dt = datetime.datetime(anio, mes, dia)
+        fecha_dt = datetime.datetime(año, mes, dia)
         fecha_local = zona_horaria.localize(fecha_dt)
         es_horario_verano = bool(fecha_local.dst())
 
-        # Añadimos la fila a la lista de datos a insertar
         datos_fechas.append((
-            id_fecha, fecha_actual, anio, trimestre, mes, nombres_meses[mes-1],
+            id_fecha, fecha_actual, año, trimestre, mes, nombres_meses[mes-1],
             dia, dia_semana, nombres_dias[dia_semana-1], estacion, 
             es_fin_semana, es_festivo, es_horario_verano
         ))
         
-        # Avanzamos un día
         fecha_actual += datetime.timedelta(days=1)
 
-    # Sentencia SQL
+    # El INSERT exige la columna 'año' explícitamente
     sql = """
         INSERT IGNORE INTO dim_fecha (
-            id_fecha, fecha_completa, anio, trimestre, mes, nombre_mes, 
+            id_fecha, fecha_completa, año, trimestre, mes, nombre_mes, 
             dia, dia_semana, nombre_dia, estacion, es_fin_de_semana, es_festivo, es_horario_verano
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
     
-    # INGESTA POR LOTES (Batching): Insertamos de 1000 en 1000 para no saturar la memoria del servidor Lorca
     tamano_lote = 1000
     total_insertados = 0
     
@@ -93,7 +79,7 @@ def poblar_dim_fecha(cursor):
         cursor.executemany(sql, lote)
         total_insertados += len(lote)
         
-    print(f"Completado: {total_insertados} dias insertados en dim_fecha.")
+    print(f"Completado: {total_insertados} días insertados en dim_fecha.")
 
 def poblar_dim_hora(cursor):
     print("Generando las 24 horas del reloj...")
@@ -103,20 +89,17 @@ def poblar_dim_hora(cursor):
     for h in range(24):
         id_hora = h
         hora_del_dia = h
-        minuto_del_dia = 0 # Asumimos horas en punto
+        minuto_del_dia = 0 
         
-        # Formato 24h (ej. "14:00")
         hora_24h = f"{h:02d}:00"
         
-        # Formato 12h (ej. "02:00 PM")
         am_pm = "AM" if h < 12 else "PM"
         h_12 = h if h <= 12 else h - 12
         h_12 = 12 if h_12 == 0 else h_12
         hora_12h = f"{h_12:02d}:00 {am_pm}"
         
-        # Clasificar tramo horario
         if 6 <= h < 12:
-            tramo = "Manana"
+            tramo = "Mañana"  # ¡Con Ñ!
         elif 12 <= h < 20:
             tramo = "Tarde"
         elif 20 <= h <= 23:
@@ -140,8 +123,6 @@ def poblar_dim_zona(cursor):
     print("Importando zonas desde generacion_tiles.py...")
     
     try:
-        # Llamamos a tu función de generacion_tiles.
-        # IMPORTANTE: Revisa que tu función se llame 'obtener_datos_tiles' dentro de tu archivo.
         lista_tiles = generacion_tiles.obtener_datos_tiles()
         
         datos_zonas = []
@@ -177,7 +158,6 @@ def poblar_dim_zona(cursor):
         print(f"Error al procesar las zonas: {e}")
 
 def main():
-    # Parámetros de conexión a Lorca
     db_host = "10.151.30.2"
     db_port = 3306
     db_user = "bd_rvm_solar_map"
@@ -198,12 +178,10 @@ def main():
         if conexion.open:
             cursor = conexion.cursor()
             
-            # Ejecutamos las tres funciones de inserción
             poblar_dim_fecha(cursor)
             poblar_dim_hora(cursor)
             poblar_dim_zona(cursor)
             
-            # Guardamos todos los cambios en la base de datos
             conexion.commit()
             print("=========================================================")
             print("¡ÉXITO TOTAL! Todas las dimensiones han sido pobladas.")
