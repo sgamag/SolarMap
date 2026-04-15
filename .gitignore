@@ -36,7 +36,6 @@ previews/
 *.nc
 *.nc4
 *.json
-*.txt
 
 # Archivos ocultos del sistema o IDE
 .DS_Store
@@ -48,3 +47,7 @@ previews/
 
 mapa.html
 src/mapa.html
+
+# --- NUEVO: Ignorar carpetas masivas de Copernicus ---
+**/data_Ingesta/
+**/csv_potencial/
