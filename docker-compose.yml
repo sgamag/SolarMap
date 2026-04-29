@@ -13,7 +13,6 @@ services:
     networks:
       - solarmap_net
 
-  # ===== HDFS (Data Lake) =====
   namenode:
     image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
     container_name: solarmap_namenode
@@ -22,7 +21,7 @@ services:
       - CLUSTER_NAME=solarmap
       - CORE_CONF_fs_defaultFS=hdfs://namenode:8020
     ports:
-      - "9870:9870"   # UI NameNode -> http://localhost:9870
+      - "9870:9870"
     volumes:
       - namenode_data:/hadoop/dfs/name
       - ./docker/hdfs/init:/init
@@ -38,13 +37,12 @@ services:
     depends_on:
       - namenode
     ports:
-      - "9864:9864"   # UI DataNode (opcional)
+      - "9864:9864"
     volumes:
       - datanode_data:/hadoop/dfs/data
     networks:
       - solarmap_net
 
-  # Descarga y procesamiento: ejecuciones manuales o pruebas puntuales
   descarga:
     build:
       context: .
@@ -72,6 +70,25 @@ services:
     networks:
       - solarmap_net
 
+  etl_clima:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: solarmap_etl_clima
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+    working_dir: /app/src
+    environment:
+      HDFS_URL: hdfs://namenode:8020
+      DATALAKE_ROOT: /datalake
+    depends_on:
+      - namenode
+      - datanode
+    command: bash
+    networks:
+      - solarmap_net
+
   sql_worker:
     build:
       context: .
@@ -88,8 +105,6 @@ services:
       DB_NAME: era5_madrid
       DB_USER: era5_user
       DB_PASS: SolarMap67
-
-      # HDFS
       HDFS_URL: hdfs://namenode:8020
       DATALAKE_ROOT: /datalake
     depends_on:
@@ -117,7 +132,6 @@ services:
       DB_NAME: era5_madrid
       DB_USER: era5_user
       DB_PASS: SolarMap67
-
       HDFS_URL: hdfs://namenode:8020
       DATALAKE_ROOT: /datalake
     networks:
