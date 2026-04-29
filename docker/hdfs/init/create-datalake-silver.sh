@@ -26,18 +26,20 @@ echo "==> Creating CSV tile structure..."
 
 imagBASE="/datalake/datos/silver/Imagenes"
 
-hdfs dfs -mkdir -p $imagBASE
-
-hdfs dfs -rm -r $imagBASE/Entreno/Complex_data
-hdfs dfs -rm -r $imagBASE/Entreno/Gable_hip_other
-hdfs dfs -rmdir -r $imagBASE/Entreno/Bugs
-hdfs dfs -rmdir -r $imagBASE/Entreno/Flat_Data
-
 imagBASE="/datalake/datos/silver/Imagenes/Produccion"
 
 for tile in $(seq -w 1 36); do
   TILE_PATH="$imagBASE/tile${tile}"
   hdfs dfs -mkdir -p $TILE_PATH 
 done
+
+imagBASE="/datalake/datos/silver/Imagenes/Entreno"
+
+hdfs dfs -mkdir -p $imagBASE/test
+hdfs dfs -mkdir -p $imagBASE/train_mask
+hdfs dfs -mkdir -p $imagBASE/train
+hdfs dfs -mkdir -p $imagBASE/train_mask
+hdfs dfs -mkdir -p $imagBASE/validate
+hdfs dfs -mkdir -p $imagBASE/validate_mask
 
 echo "==> Image structure created successfully."
