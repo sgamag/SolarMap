@@ -1,25 +1,46 @@
-import subprocess
-import tempfile
-import textwrap
-import shlex
-import re
-import threading
+"""
+ETL clima desde HDFS usando WebHDFS + Polars.
+
+Entrada:
+  /datalake/datos/bronze/csv/tile01/2013/2013_04.csv
+
+Salida:
+  /datalake/datos/silver/Clima/tile01/2013/2013_04_potencial.csv
+
+Características:
+- No usa docker exec.
+- Pensado para ejecutarse dentro del contenedor etl_clima.
+- Lista bronze una vez.
+- Lista silver una vez.
+- Procesa solo lo pendiente.
+- Procesa por lotes tile/año.
+- Usa 3 workers.
+"""
+
 from pathlib import Path
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.parse import quote
+import tempfile
+import shutil
+import threading
+import re
+import requests
+import polars as pl
+import os
 
 
 # ============================================================
 # CONFIGURACIÓN
 # ============================================================
 
-CONTENEDOR = "solarmap_namenode"
 
+WEBHDFS_BASE = os.getenv(
+    "WEBHDFS_BASE",
+    "http://namenode:9870/webhdfs/v1"
+)
 RUTA_BRONZE = "/datalake/datos/bronze/csv"
 RUTA_SILVER = "/datalake/datos/silver/Clima"
-
-TMP_CONTENEDOR = "/tmp/etl_clima"
-SCRIPT_POLARS_CONTENEDOR = "/tmp/procesar_potencial_polars.py"
 
 NUM_WORKERS = 3
 
@@ -30,82 +51,9 @@ PATRON_CSV = re.compile(r"^\d{4}_\d{2}\.csv$")
 lock_print = threading.Lock()
 
 
-def log(*args):
-    with lock_print:
-        print(*args)
-
-
 # ============================================================
-# COMANDOS DOCKER / HDFS
+# PARÁMETROS DEL MODELO
 # ============================================================
-
-def ejecutar(cmd: list[str]) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, capture_output=True, text=True)
-
-
-def docker_exec(cmd: str) -> str:
-    resultado = ejecutar(["docker", "exec", CONTENEDOR, "bash", "-c", cmd])
-
-    if resultado.returncode != 0:
-        raise RuntimeError(
-            f"[ERROR docker exec]\n"
-            f"Comando: {cmd}\n"
-            f"STDERR: {resultado.stderr}"
-        )
-
-    return resultado.stdout
-
-
-def docker_cp_a_contenedor(origen: Path, destino: str) -> None:
-    resultado = ejecutar(["docker", "cp", str(origen), f"{CONTENEDOR}:{destino}"])
-
-    if resultado.returncode != 0:
-        raise RuntimeError(
-            f"[ERROR docker cp]\n"
-            f"Origen: {origen}\n"
-            f"Destino: {destino}\n"
-            f"STDERR: {resultado.stderr}"
-        )
-
-
-def existe_hdfs(ruta: str) -> bool:
-    resultado = ejecutar([
-        "docker", "exec", CONTENEDOR,
-        "bash", "-c", f'hdfs dfs -test -e "{ruta}"'
-    ])
-    return resultado.returncode == 0
-
-
-def crear_directorio_hdfs(ruta: str) -> None:
-    docker_exec(f'hdfs dfs -mkdir -p "{ruta}"')
-
-
-def listar_csv_hdfs(ruta: str) -> list[str]:
-    resultado = ejecutar([
-        "docker", "exec", CONTENEDOR,
-        "bash", "-c", f'hdfs dfs -find "{ruta}" -name "*.csv"'
-    ])
-
-    if resultado.returncode != 0:
-        stderr = (resultado.stderr or "").lower()
-
-        if "no such file or directory" in stderr or "file does not exist" in stderr:
-            return []
-
-        raise RuntimeError(f"[ERROR listando HDFS]\n{resultado.stderr}")
-
-    return [linea.strip() for linea in resultado.stdout.splitlines() if linea.strip()]
-
-
-# ============================================================
-# SCRIPT POLARS QUE SE EJECUTA DENTRO DEL CONTENEDOR
-# ============================================================
-
-SCRIPT_POLARS = r'''
-import sys
-from pathlib import Path
-import polars as pl
-
 
 HORAS_SOL = {
     1: 9.3,  2: 10.0, 3: 11.9, 4: 13.3,
@@ -119,140 +67,92 @@ BETA_TEMP = 0.004
 REF_RADIACION = 1.0
 
 
-def expresion_horas_norm():
-    horas_max = max(HORAS_SOL.values())
-
-    expr = None
-
-    for mes, horas in HORAS_SOL.items():
-        valor = horas / horas_max
-
-        if expr is None:
-            expr = pl.when(pl.col("month") == mes).then(pl.lit(valor))
-        else:
-            expr = expr.when(pl.col("month") == mes).then(pl.lit(valor))
-
-    return expr.otherwise(None).alias("horas_norm")
+def log(*args):
+    with lock_print:
+        print(*args)
 
 
-def procesar_csv(ruta_entrada: Path, ruta_salida: Path):
-    df = pl.read_csv(ruta_entrada)
+# ============================================================
+# WEBHDFS
+# ============================================================
 
-    columnas_limpias = {c: c.strip() for c in df.columns if c != c.strip()}
-    if columnas_limpias:
-        df = df.rename(columnas_limpias)
+def construir_url_hdfs(ruta: str, operacion: str) -> str:
+    ruta_codificada = quote(ruta, safe="/")
+    return f"{WEBHDFS_BASE}{ruta_codificada}?op={operacion}&user.name=root"
 
-    requeridas = {"valid_time", "ssrd_kWhm2", "t2m_C", "tcc"}
 
-    if not requeridas.issubset(set(df.columns)):
-        raise ValueError(f"CSV incompleto: {ruta_entrada}")
+def existe_hdfs(ruta: str) -> bool:
+    respuesta = requests.get(construir_url_hdfs(ruta, "GETFILESTATUS"))
+    return respuesta.status_code == 200
 
-    df = df.with_columns([
-        pl.col("valid_time").str.to_datetime(strict=False).alias("valid_time"),
-        pl.col("ssrd_kWhm2").cast(pl.Float64, strict=False).clip(0, None).alias("ssrd_kWhm2"),
-        pl.col("t2m_C").cast(pl.Float64, strict=False).alias("t2m_C"),
-        pl.col("tcc").cast(pl.Float64, strict=False).clip(0, 1).alias("tcc"),
-    ])
 
-    df = df.drop_nulls(["valid_time"])
+def crear_directorio_hdfs(ruta: str) -> None:
+    respuesta = requests.put(construir_url_hdfs(ruta, "MKDIRS"))
 
-    df = df.with_columns(
-        pl.col("valid_time").dt.month().alias("month")
-    ).sort("valid_time")
+    if respuesta.status_code not in (200, 201):
+        raise RuntimeError(f"No se pudo crear directorio HDFS: {ruta}\n{respuesta.text}")
 
-    df = df.with_columns([
-        (pl.col("ssrd_kWhm2") / REF_RADIACION).clip(0, 1).alias("rad_norm"),
-        ((1 - pl.col("tcc")).clip(0, None).pow(ALFA_NUBES)).alias("pen_nube"),
-        (pl.lit(1) - BETA_TEMP * ((pl.col("t2m_C") - TEMP_BASE).clip(0, None))).clip(0, None).alias("pen_temp"),
-        expresion_horas_norm(),
-    ])
 
-    df = df.with_columns(
-        (
-            pl.col("rad_norm") *
-            pl.col("pen_nube") *
-            pl.col("pen_temp") *
-            pl.col("horas_norm")
-        ).clip(0, 1).alias("potencial_0_1")
+def listar_csv_hdfs(ruta: str) -> list[str]:
+    encontrados = []
+
+    def recorrer(ruta_actual: str):
+        respuesta = requests.get(construir_url_hdfs(ruta_actual, "LISTSTATUS"))
+
+        if respuesta.status_code != 200:
+            return
+
+        estados = respuesta.json()["FileStatuses"]["FileStatus"]
+
+        for item in estados:
+            nombre = item["pathSuffix"]
+            tipo = item["type"]
+            ruta_item = f"{ruta_actual.rstrip('/')}/{nombre}"
+
+            if tipo == "DIRECTORY":
+                recorrer(ruta_item)
+            elif tipo == "FILE" and ruta_item.endswith(".csv"):
+                encontrados.append(ruta_item)
+
+    recorrer(ruta)
+    return encontrados
+
+
+def descargar_hdfs(ruta_hdfs: str, ruta_local: Path) -> None:
+    ruta_local.parent.mkdir(parents=True, exist_ok=True)
+
+    respuesta = requests.get(
+        construir_url_hdfs(ruta_hdfs, "OPEN"),
+        allow_redirects=True
     )
 
-    for col in ["rad_norm", "pen_nube", "pen_temp", "horas_norm", "potencial_0_1"]:
-        df = df.with_columns(pl.col(col).round(4).alias(col))
+    if respuesta.status_code != 200:
+        raise RuntimeError(f"No se pudo descargar {ruta_hdfs}\n{respuesta.text}")
 
-    columnas_salida = ["valid_time"]
-
-    for col in ["tile_id", "latitude", "longitude"]:
-        if col in df.columns:
-            columnas_salida.append(col)
-
-    columnas_salida += [
-        "ssrd_kWhm2", "t2m_C", "tcc",
-        "rad_norm", "pen_nube", "pen_temp",
-        "horas_norm", "potencial_0_1",
-    ]
-
-    df_salida = df.select(columnas_salida)
-
-    # Para parecerse a pandas: YYYY-MM-DD HH:MM:SS
-    df_salida = df_salida.with_columns(
-        pl.col("valid_time").dt.strftime("%Y-%m-%d %H:%M:%S").alias("valid_time")
-    )
-
-    ruta_salida.parent.mkdir(parents=True, exist_ok=True)
-    df_salida.write_csv(ruta_salida)
+    ruta_local.write_bytes(respuesta.content)
 
 
-def main():
-    if len(sys.argv) < 4:
-        print("Uso: python3 procesar_potencial_polars.py <dir_entrada> <dir_salida> <csv1> [csv2 ...]")
-        sys.exit(1)
+def subir_hdfs(ruta_local: Path, ruta_hdfs: str) -> None:
+    carpeta_hdfs = ruta_hdfs.rsplit("/", 1)[0]
+    crear_directorio_hdfs(carpeta_hdfs)
 
-    dir_entrada = Path(sys.argv[1])
-    dir_salida = Path(sys.argv[2])
-    nombres_csv = sys.argv[3:]
+    url_creacion = construir_url_hdfs(ruta_hdfs, "CREATE") + "&overwrite=false"
 
-    procesados = 0
+    respuesta = requests.put(url_creacion, allow_redirects=False)
 
-    for nombre_csv in nombres_csv:
-        entrada = dir_entrada / nombre_csv
-        salida = dir_salida / nombre_csv.replace(".csv", "_potencial.csv")
+    if respuesta.status_code not in (307, 201):
+        raise RuntimeError(f"No se pudo iniciar subida HDFS: {ruta_hdfs}\n{respuesta.text}")
 
-        procesar_csv(entrada, salida)
-        procesados += 1
+    url_subida = respuesta.headers.get("Location")
 
-    print(f"Procesados en Polars: {procesados}")
+    if not url_subida:
+        raise RuntimeError(f"No se recibió Location para subir {ruta_hdfs}")
 
+    with open(ruta_local, "rb") as fichero:
+        respuesta_subida = requests.put(url_subida, data=fichero)
 
-if __name__ == "__main__":
-    main()
-'''
-
-
-def copiar_script_polars_al_contenedor() -> None:
-    with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False, encoding="utf-8") as f:
-        f.write(SCRIPT_POLARS)
-        ruta_local = Path(f.name)
-
-    try:
-        docker_cp_a_contenedor(ruta_local, SCRIPT_POLARS_CONTENEDOR)
-    finally:
-        ruta_local.unlink(missing_ok=True)
-
-
-def comprobar_polars() -> None:
-    resultado = ejecutar([
-        "docker", "exec", CONTENEDOR,
-        "bash", "-c", "python3 -c 'import polars; print(polars.__version__)'"
-    ])
-
-    if resultado.returncode != 0:
-        raise RuntimeError(
-            "Polars no está instalado dentro del contenedor.\n"
-            "Ejecuta:\n"
-            f'docker exec {CONTENEDOR} bash -c "pip3 install polars"'
-        )
-
-    log("Polars detectado en contenedor:", resultado.stdout.strip())
+    if respuesta_subida.status_code not in (200, 201):
+        raise RuntimeError(f"No se pudo subir {ruta_hdfs}\n{respuesta_subida.text}")
 
 
 # ============================================================
@@ -295,21 +195,22 @@ def obtener_tile_anio(ruta_entrada: str) -> tuple[str, str]:
 
 
 def cargar_trabajos_pendientes() -> dict[tuple[str, str], list[tuple[str, str]]]:
-    log("Listando CSV de bronze una sola vez...")
+    log("Listando CSV de bronze...")
     csv_bronze = listar_csv_hdfs(RUTA_BRONZE)
-    csv_bronze_validos = [p for p in csv_bronze if es_csv_bronze_valido(p)]
+    csv_validos = [ruta for ruta in csv_bronze if es_csv_bronze_valido(ruta)]
 
     log(f"CSV encontrados en bronze: {len(csv_bronze)}")
-    log(f"CSV válidos en bronze    : {len(csv_bronze_validos)}")
+    log(f"CSV válidos en bronze    : {len(csv_validos)}")
 
-    log("Listando CSV ya existentes en silver una sola vez...")
+    log("Listando CSV existentes en silver...")
     csv_silver = set(listar_csv_hdfs(RUTA_SILVER))
+
     log(f"CSV existentes en silver : {len(csv_silver)}")
 
     trabajos = defaultdict(list)
     saltados = 0
 
-    for entrada in csv_bronze_validos:
+    for entrada in csv_validos:
         salida = ruta_salida_para_entrada(entrada)
 
         if salida in csv_silver:
@@ -329,57 +230,136 @@ def cargar_trabajos_pendientes() -> dict[tuple[str, str], list[tuple[str, str]]]
 
 
 # ============================================================
-# PROCESAMIENTO POR LOTE DENTRO DEL CONTENEDOR
+# PROCESAMIENTO CON POLARS
+# ============================================================
+
+def expresion_horas_norm():
+    horas_max = max(HORAS_SOL.values())
+
+    expresion = None
+
+    for mes, horas in HORAS_SOL.items():
+        valor = horas / horas_max
+
+        if expresion is None:
+            expresion = pl.when(pl.col("month") == mes).then(pl.lit(valor))
+        else:
+            expresion = expresion.when(pl.col("month") == mes).then(pl.lit(valor))
+
+    return expresion.otherwise(None).alias("horas_norm")
+
+
+def procesar_csv(entrada: Path, salida: Path) -> None:
+    df = pl.read_csv(entrada)
+
+    columnas_renombradas = {
+        columna: columna.strip()
+        for columna in df.columns
+        if columna != columna.strip()
+    }
+
+    if columnas_renombradas:
+        df = df.rename(columnas_renombradas)
+
+    requeridas = {"valid_time", "ssrd_kWhm2", "t2m_C", "tcc"}
+
+    if not requeridas.issubset(set(df.columns)):
+        raise ValueError(f"CSV incompleto: {entrada}")
+
+    df = df.with_columns([
+        pl.col("valid_time").str.to_datetime(strict=False).alias("valid_time"),
+        pl.col("ssrd_kWhm2").cast(pl.Float64, strict=False).clip(0, None).alias("ssrd_kWhm2"),
+        pl.col("t2m_C").cast(pl.Float64, strict=False).alias("t2m_C"),
+        pl.col("tcc").cast(pl.Float64, strict=False).clip(0, 1).alias("tcc"),
+    ])
+
+    df = df.drop_nulls(["valid_time"])
+
+    df = df.with_columns(
+        pl.col("valid_time").dt.month().alias("month")
+    ).sort("valid_time")
+
+    df = df.with_columns([
+        (pl.col("ssrd_kWhm2") / REF_RADIACION).clip(0, 1).alias("rad_norm"),
+        ((1 - pl.col("tcc")).clip(0, None).pow(ALFA_NUBES)).alias("pen_nube"),
+        (
+            pl.lit(1) -
+            BETA_TEMP * ((pl.col("t2m_C") - TEMP_BASE).clip(0, None))
+        ).clip(0, None).alias("pen_temp"),
+        expresion_horas_norm(),
+    ])
+
+    df = df.with_columns(
+        (
+            pl.col("rad_norm")
+            * pl.col("pen_nube")
+            * pl.col("pen_temp")
+            * pl.col("horas_norm")
+        ).clip(0, 1).alias("potencial_0_1")
+    )
+
+    for columna in ["rad_norm", "pen_nube", "pen_temp", "horas_norm", "potencial_0_1"]:
+        df = df.with_columns(pl.col(columna).round(4).alias(columna))
+
+    columnas_salida = ["valid_time"]
+
+    for columna in ["tile_id", "latitude", "longitude"]:
+        if columna in df.columns:
+            columnas_salida.append(columna)
+
+    columnas_salida += [
+        "ssrd_kWhm2", "t2m_C", "tcc",
+        "rad_norm", "pen_nube", "pen_temp",
+        "horas_norm", "potencial_0_1",
+    ]
+
+    df_salida = df.select(columnas_salida)
+
+    df_salida = df_salida.with_columns(
+        pl.col("valid_time").dt.strftime("%Y-%m-%d %H:%M:%S").alias("valid_time")
+    )
+
+    salida.parent.mkdir(parents=True, exist_ok=True)
+    df_salida.write_csv(salida)
+
+
+# ============================================================
+# LOTES
 # ============================================================
 
 def procesar_lote(tile: str, anio: str, trabajos_lote: list[tuple[str, str]]) -> tuple[int, int]:
     log(f"\n===== LOTE {tile}/{anio} | pendientes={len(trabajos_lote)} =====")
 
-    tmp_lote = f"{TMP_CONTENEDOR}/{tile}_{anio}"
-    tmp_entrada = f"{tmp_lote}/entrada"
-    tmp_salida = f"{tmp_lote}/salida"
+    carpeta_temporal = Path(tempfile.mkdtemp(prefix=f"etl_{tile}_{anio}_"))
 
-    ruta_hdfs_lote = f"{RUTA_BRONZE}/{tile}/{anio}"
-    ruta_hdfs_salida = f"{RUTA_SILVER}/{tile}/{anio}"
-
-    nombres_pendientes = [
-        entrada.rsplit("/", 1)[-1]
-        for entrada, _ in trabajos_lote
-    ]
+    procesados = 0
+    errores = 0
 
     try:
-        docker_exec(f'rm -rf "{tmp_lote}"')
-        docker_exec(f'mkdir -p "{tmp_entrada}" "{tmp_salida}"')
+        for ruta_entrada_hdfs, ruta_salida_hdfs in trabajos_lote:
+            nombre_entrada = ruta_entrada_hdfs.rsplit("/", 1)[-1]
+            nombre_salida = nombre_entrada.replace(".csv", "_potencial.csv")
 
-        # Descargamos el lote completo dentro del contenedor
-        docker_exec(f'hdfs dfs -get "{ruta_hdfs_lote}"/*.csv "{tmp_entrada}/"')
+            entrada_local = carpeta_temporal / nombre_entrada
+            salida_local = carpeta_temporal / nombre_salida
 
-        # Procesamos solo los CSV pendientes
-        args_csv = " ".join(shlex.quote(nombre) for nombre in nombres_pendientes)
+            try:
+                descargar_hdfs(ruta_entrada_hdfs, entrada_local)
+                procesar_csv(entrada_local, salida_local)
+                subir_hdfs(salida_local, ruta_salida_hdfs)
 
-        docker_exec(
-            f'python3 "{SCRIPT_POLARS_CONTENEDOR}" '
-            f'"{tmp_entrada}" "{tmp_salida}" {args_csv}'
-        )
+                log("[SUBIDO]", ruta_salida_hdfs)
+                procesados += 1
 
-        crear_directorio_hdfs(ruta_hdfs_salida)
+            except Exception as exc:
+                log(f"[ERROR] {tile}/{anio} -> {ruta_entrada_hdfs}")
+                log(exc)
+                errores += 1
 
-        # Subimos todas las salidas generadas de golpe
-        docker_exec(f'hdfs dfs -put "{tmp_salida}"/*.csv "{ruta_hdfs_salida}/"')
-
-        log(f"[OK LOTE] {tile}/{anio} -> {len(nombres_pendientes)} archivos")
-        return len(nombres_pendientes), 0
-
-    except Exception as exc:
-        log(f"[ERROR LOTE] {tile}/{anio}")
-        log(exc)
-        return 0, len(nombres_pendientes)
+        return procesados, errores
 
     finally:
-        try:
-            docker_exec(f'rm -rf "{tmp_lote}"')
-        except Exception as exc:
-            log(f"[AVISO] No se pudo borrar temporal {tmp_lote}: {exc}")
+        shutil.rmtree(carpeta_temporal, ignore_errors=True)
 
 
 # ============================================================
@@ -392,10 +372,6 @@ def main() -> None:
         return
 
     crear_directorio_hdfs(RUTA_SILVER)
-    docker_exec(f'mkdir -p "{TMP_CONTENEDOR}"')
-
-    comprobar_polars()
-    copiar_script_polars_al_contenedor()
 
     trabajos = cargar_trabajos_pendientes()
 

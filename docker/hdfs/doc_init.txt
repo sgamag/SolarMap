@@ -86,58 +86,9 @@ Borrar carpeta completa:
 docker exec -it solarmap_namenode hdfs dfs -rm -r /ruta/carpeta
 
 ========================================
-6) SAFE MODE
+Correr procesara tradiacion.py
 
-Comprobar si HDFS está en Safe Mode:
-
-docker exec -it solarmap_namenode hdfs dfsadmin -safemode get
-
-Quitar Safe Mode:
-
-docker exec -it solarmap_namenode hdfs dfsadmin -safemode leave
-
-========================================
-7) PROBLEMAS COMUNES
-
-ERROR: hdfs: command not found
-
-Solución:
-Entrar primero al contenedor y ejecutar el script desde dentro:
-
-docker exec -it solarmap_namenode bash
-/init/create-datalake-bronze.sh
-
-Script se queda en "Waiting for HDFS"
-
-Solución:
-Eliminar el bloque until hdfs dfs -ls /
-Si los contenedores ya están levantados no es necesario.
-
-Script no crea carpetas
-
-Probar mkdir manual:
-
-docker exec -it solarmap_namenode hdfs dfs -mkdir -p /datalake/test
-
-========================================
-8) INTERFAZ WEB HDFS
-
-Abrir en navegador:
-
-http://localhost:9870
-
-========================================
-9) REGLAS IMPORTANTES
-
-NO usar "docker compose down -v" salvo que quieras borrar todo.
-
-Los volúmenes Docker protegen los datos.
-
-mkdir -p no borra datos existentes.
-
-Los scripts pueden ejecutarse varias veces sin romper nada.
-
-Si cambias Dockerfile usar --build.
+docker compose run --rm etl_clima python "Ingesta y Almacenamiento/procesar_radiacion.py"
 
 ========================================
 FLUJO NORMAL DE TRABAJO
