@@ -26,7 +26,9 @@ folium.TileLayer(
 
 folium.LayerControl().add_to(mapa)
 
-#Script de html2canvas
+# ---------------------------------------------------
+# Script de html2canvas
+# ---------------------------------------------------
 html2canvas_script = """
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 """
@@ -34,9 +36,9 @@ mapa.get_root().header.add_child(folium.Element(html2canvas_script))
 
 nombre_mapa = mapa.get_name()
 
-
+# ---------------------------------------------------
 # BOTÓN DE CAPTURA + ALERTA + LOADING
-
+# ---------------------------------------------------
 boton_captura = f"""
 <style>
 html, body {{
@@ -48,7 +50,6 @@ html, body {{
     height: 100vh;
 }}
 
-/* Botón de captura: arriba derecha */
 #capture-btn {{
     position: absolute;
     top: 10px;
@@ -67,7 +68,6 @@ html, body {{
     filter: brightness(1.1);
 }}
 
-/* Cartel de aviso centrado */
 #custom-alert {{
     position: fixed;
     top: 50%;
@@ -85,7 +85,6 @@ html, body {{
     transition: opacity 0.4s ease;
 }}
 
-/* Overlay de carga para la búsqueda */
 #loading-overlay {{
     position: fixed;
     top: 0;
@@ -128,7 +127,6 @@ html, body {{
     to {{ transform: rotate(360deg); }}
 }}
 
-/* Responsive para el botón */
 @media (max-width: 768px) {{
     #capture-btn {{
         padding: 6px 8px;
@@ -138,11 +136,8 @@ html, body {{
 </style>
 
 <div id="capture-btn"> Obtener Imagen </div>
-
-<!-- Cartel de aviso -->
 <div id="custom-alert"></div>
 
-<!-- Overlay de carga (se usa en la BÚSQUEDA, no en la captura) -->
 <div id="loading-overlay">
     <div class="loading-box">
         Procesando búsqueda...
@@ -160,7 +155,6 @@ window.addEventListener('load', function() {{
     var minZoom = 19;
     var maxZoom = 20;
 
-    // Función global para mostrar avisos
     window.showAlert = function(msg) {{
         var alertBox = document.getElementById("custom-alert");
         if (!alertBox) return;
@@ -171,7 +165,6 @@ window.addEventListener('load', function() {{
         }}, 2500);
     }}
 
-    // Funciones globales de loading (se usan en la barra de búsqueda)
     window.showLoading = function() {{
         var overlay = document.getElementById("loading-overlay");
         if (!overlay) return;
@@ -188,17 +181,16 @@ window.addEventListener('load', function() {{
         }}, 300);
     }}
 
-    // Cambiar color del botón según el zoom
     function updateCaptureButtonColor() {{
         var z = map.getZoom();
         if (z < minZoom) {{
-            btn.style.backgroundColor = "#7f1d1d";  // rojo
+            btn.style.backgroundColor = "#7f1d1d";
             btn.style.borderColor = "#fecaca";
         }} else if (z > maxZoom) {{
-            btn.style.backgroundColor = "#92400e";  // naranja
+            btn.style.backgroundColor = "#92400e";
             btn.style.borderColor = "#fed7aa";
         }} else {{
-            btn.style.backgroundColor = "#14532d";  // verde
+            btn.style.backgroundColor = "#14532d";
             btn.style.borderColor = "#4ade80";
         }}
     }}
@@ -206,7 +198,6 @@ window.addEventListener('load', function() {{
     map.on('zoomend', updateCaptureButtonColor);
     updateCaptureButtonColor();
 
-    // Captura de imagen (SIN overlay de carga)
     btn.onclick = function() {{
         var currentZoom = map.getZoom();
 
@@ -220,7 +211,7 @@ window.addEventListener('load', function() {{
 
         var mapContainer = document.getElementsByClassName("folium-map")[0];
         if (!mapContainer) {{
-            window.showAlert("❌ No se encontró el contenedor del mapa.");
+            window.showAlert("No se encontró el contenedor del mapa.");
             return;
         }}
 
@@ -238,10 +229,97 @@ window.addEventListener('load', function() {{
                 el.style.visibility = 'visible';
             }});
 
+            // -------------------------------
+            // 1. DESCARGAR IMAGEN DEL MAPA
+            // -------------------------------
+            var imageName = 'mapa_limpio';
+
             var link = document.createElement('a');
-            link.download = 'mapa_limpio.png';
-            link.href = canvas.toDataURL();
+            link.download = imageName + '.png';
+            link.href = canvas.toDataURL('image/png');
             link.click();
+
+            // -------------------------------
+            // 2. OBTENER METADATOS DEL MAPA
+            // -------------------------------
+            var center = map.getCenter();
+            var bounds = map.getBounds();
+            var zoom = map.getZoom();
+
+            var northWest = bounds.getNorthWest();
+            var northEast = bounds.getNorthEast();
+            var southEast = bounds.getSouthEast();
+            var southWest = bounds.getSouthWest();
+
+            // Cálculo de metros por píxel en el centro del mapa
+            var centerLatLng = map.getCenter();
+            var pointCenter = map.latLngToContainerPoint(centerLatLng);
+
+            var pointRight = L.point(pointCenter.x + 1, pointCenter.y);
+            var pointDown = L.point(pointCenter.x, pointCenter.y + 1);
+
+            var latLngRight = map.containerPointToLatLng(pointRight);
+            var latLngDown = map.containerPointToLatLng(pointDown);
+
+            var metersPerPixelX = centerLatLng.distanceTo(latLngRight);
+            var metersPerPixelY = centerLatLng.distanceTo(latLngDown);
+
+            var metadata = {{
+                image_id: imageName,
+                width: canvas.width,
+                height: canvas.height,
+                crs: "EPSG:4326",
+                north_up: true,
+                zoom: zoom,
+                center: {{
+                    lat: center.lat,
+                    lon: center.lng
+                }},
+                bbox: {{
+                    top_left: {{
+                        lat: northWest.lat,
+                        lon: northWest.lng
+                    }},
+                    top_right: {{
+                        lat: northEast.lat,
+                        lon: northEast.lng
+                    }},
+                    bottom_right: {{
+                        lat: southEast.lat,
+                        lon: southEast.lng
+                    }},
+                    bottom_left: {{
+                        lat: southWest.lat,
+                        lon: southWest.lng
+                    }}
+                }},
+                meters_per_pixel: {{
+                    x: metersPerPixelX,
+                    y: metersPerPixelY
+                }},
+                source: {{
+                    map_provider: "Esri World Imagery",
+                    capture_date: new Date().toISOString()
+                }}
+            }};
+
+            // -------------------------------
+            // 3. DESCARGAR JSON DE METADATOS
+            // -------------------------------
+            var metadataBlob = new Blob(
+                [JSON.stringify(metadata, null, 4)],
+                {{ type: "application/json" }}
+            );
+
+            var metadataLink = document.createElement('a');
+            metadataLink.download = imageName + '_metadata.json';
+            metadataLink.href = URL.createObjectURL(metadataBlob);
+            metadataLink.click();
+
+            URL.revokeObjectURL(metadataLink.href);
+
+            window.showAlert("Imagen y metadata descargadas correctamente.");
+
         }}).catch(function(err) {{
 
             toHide.forEach(function(el) {{
@@ -330,6 +408,7 @@ window.addEventListener('load', function() {{
 
     function ejecutarBusqueda() {{
         var query = input.value.trim();
+
         if (!query) {{
             if (window.showAlert) {{
                 window.showAlert("Introduce una dirección.");
@@ -367,7 +446,6 @@ window.addEventListener('load', function() {{
 
             searchMarker = L.marker([lat, lon]).addTo(map).bindPopup(nombre).openPopup();
 
-            // Movimiento suave
             map.flyTo([lat, lon], 19, {{
                 animate: true,
                 duration: 1.2
@@ -375,9 +453,11 @@ window.addEventListener('load', function() {{
         }})
         .catch(function(error) {{
             console.error(error);
+
             if (window.hideLoading) {{
                 window.hideLoading();
             }}
+
             if (window.showAlert) {{
                 window.showAlert("Error al buscar la dirección");
             }} else {{
@@ -386,10 +466,8 @@ window.addEventListener('load', function() {{
         }});
     }}
 
-    // Click en el botón = buscar
     btn.addEventListener('click', ejecutarBusqueda);
 
-    // ENTER en el input = buscar también
     input.addEventListener('keydown', function(e) {{
         if (e.key === 'Enter' || e.keyCode === 13) {{
             e.preventDefault();
@@ -403,6 +481,7 @@ window.addEventListener('load', function() {{
 mapa.get_root().html.add_child(folium.Element(barra_busqueda))
 
 # ---------------------------------------------------
-
+# GUARDAR MAPA
+# ---------------------------------------------------
 mapa.save("mapa.html")
 print("Mapa guardado como 'mapa.html'")
