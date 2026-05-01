@@ -1,8 +1,14 @@
 import folium
 from peticion_direcciones import geocode_osm
 
-# Dirección inicial para centrar el mapa
+# ---------------------------------------------------
+# CONFIG
+# ---------------------------------------------------
+
 direccion = "Universidad Europea de Madrid"
+ZOOMS_PERMITIDOS = [18, 19]
+CAPTURE_SIZE = 256
+
 coords = geocode_osm(direccion)
 
 if coords is None:
@@ -15,7 +21,6 @@ mapa = folium.Map(
     zoom_start=19
 )
 
-# Capa satélite
 folium.TileLayer(
     tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     attr="Tiles © Esri",
@@ -24,385 +29,201 @@ folium.TileLayer(
     max_zoom=22
 ).add_to(mapa)
 
-folium.LayerControl().add_to(mapa)
-
-#Script de html2canvas
-html2canvas_script = """
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-"""
-mapa.get_root().header.add_child(folium.Element(html2canvas_script))
-
 nombre_mapa = mapa.get_name()
 
+# ---------------------------------------------------
+# html2canvas
+# ---------------------------------------------------
 
-# BOTÓN DE CAPTURA + ALERTA + LOADING
+mapa.get_root().header.add_child(folium.Element("""
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+"""))
 
-boton_captura = f"""
+# ---------------------------------------------------
+# UI + CAPTURA
+# ---------------------------------------------------
+
+mapa.get_root().html.add_child(folium.Element(f"""
 <style>
-html, body {{
-    height: 100%;
-    margin: 0;
-}}
 .folium-map {{
     width: 100%;
     height: 100vh;
 }}
 
-/* Botón de captura: arriba derecha */
 #capture-btn {{
     position: absolute;
     top: 10px;
     right: 150px;
     z-index: 999999;
-    background: black;
+    background: #14532d;
     color: white;
     padding: 8px 12px;
     border-radius: 6px;
-    border: 2px solid #333;
+    border: 2px solid #4ade80;
     cursor: pointer;
-    font-weight: bold;
-    box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
-}}
-#capture-btn:hover {{
-    filter: brightness(1.1);
 }}
 
-/* Cartel de aviso centrado */
+#capture-frame {{
+    position: fixed;
+    width: {CAPTURE_SIZE}px;
+    height: {CAPTURE_SIZE}px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border: 3px solid #22c55e;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.2);
+    z-index: 999998;
+    pointer-events: none;
+}}
+
 #custom-alert {{
     position: fixed;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
     z-index: 9999999;
-    background: rgba(0,0,0,0.9);
+    background: black;
     color: white;
-    padding: 20px 25px;
-    border-radius: 10px;
-    font-size: 16px;
-    text-align: center;
-    max-width: 320px;
+    padding: 15px;
+    border-radius: 8px;
     opacity: 0;
-    transition: opacity 0.4s ease;
-}}
-
-/* Overlay de carga para la búsqueda */
-#loading-overlay {{
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(0,0,0,0.55);
-    backdrop-filter: blur(2px);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 9999998;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.25s ease;
-}}
-
-.loading-box {{
-    background: rgba(20,20,20,0.95);
-    padding: 20px 30px;
-    border-radius: 12px;
-    text-align: center;
-    color: white;
-    font-size: 18px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.6);
-}}
-
-.loading-spinner {{
-    margin-top: 15px;
-    width: 35px;
-    height: 35px;
-    border: 5px solid #fff;
-    border-top-color: transparent;
-    border-radius: 50%;
-    animation: spin 0.9s linear infinite;
-}}
-
-@keyframes spin {{
-    from {{ transform: rotate(0deg); }}
-    to {{ transform: rotate(360deg); }}
-}}
-
-/* Responsive para el botón */
-@media (max-width: 768px) {{
-    #capture-btn {{
-        padding: 6px 8px;
-        font-size: 12px;
-    }}
+    transition: 0.3s;
 }}
 </style>
 
-<div id="capture-btn"> Obtener Imagen </div>
-
-<!-- Cartel de aviso -->
+<div id="capture-btn">Obtener Imagen</div>
+<div id="capture-frame"></div>
 <div id="custom-alert"></div>
-
-<!-- Overlay de carga (se usa en la BÚSQUEDA, no en la captura) -->
-<div id="loading-overlay">
-    <div class="loading-box">
-        Procesando búsqueda...
-        <div class="loading-spinner"></div>
-    </div>
-</div>
 
 <script>
 window.addEventListener('load', function() {{
-    var btn = document.getElementById("capture-btn");
-    if (!btn) return;
 
     var map = {nombre_mapa};
+    var btn = document.getElementById("capture-btn");
 
-    var minZoom = 19;
-    var maxZoom = 20;
+    var ZOOMS_PERMITIDOS = {ZOOMS_PERMITIDOS};
+    var CAPTURE_SIZE = {CAPTURE_SIZE};
 
-    // Función global para mostrar avisos
-    window.showAlert = function(msg) {{
-        var alertBox = document.getElementById("custom-alert");
-        if (!alertBox) return;
-        alertBox.innerText = msg;
-        alertBox.style.opacity = "1";
-        setTimeout(function() {{
-            alertBox.style.opacity = "0";
-        }}, 2500);
+    function showAlert(msg) {{
+        var box = document.getElementById("custom-alert");
+        box.innerText = msg;
+        box.style.opacity = 1;
+        setTimeout(() => box.style.opacity = 0, 2500);
     }}
 
-    // Funciones globales de loading (se usan en la barra de búsqueda)
-    window.showLoading = function() {{
-        var overlay = document.getElementById("loading-overlay");
-        if (!overlay) return;
-        overlay.style.opacity = "1";
-        overlay.style.pointerEvents = "all";
-    }}
-
-    window.hideLoading = function() {{
-        var overlay = document.getElementById("loading-overlay");
-        if (!overlay) return;
-        overlay.style.opacity = "0";
-        setTimeout(function() {{
-            overlay.style.pointerEvents = "none";
-        }}, 300);
-    }}
-
-    // Cambiar color del botón según el zoom
-    function updateCaptureButtonColor() {{
-        var z = map.getZoom();
-        if (z < minZoom) {{
-            btn.style.backgroundColor = "#7f1d1d";  // rojo
-            btn.style.borderColor = "#fecaca";
-        }} else if (z > maxZoom) {{
-            btn.style.backgroundColor = "#92400e";  // naranja
-            btn.style.borderColor = "#fed7aa";
-        }} else {{
-            btn.style.backgroundColor = "#14532d";  // verde
-            btn.style.borderColor = "#4ade80";
-        }}
-    }}
-
-    map.on('zoomend', updateCaptureButtonColor);
-    updateCaptureButtonColor();
-
-    // Captura de imagen (SIN overlay de carga)
     btn.onclick = function() {{
-        var currentZoom = map.getZoom();
 
-        if (currentZoom < minZoom || currentZoom > maxZoom) {{
-            window.showAlert(
-                "Zoom no válido (" + currentZoom +
-                "). Solo permitido entre " + minZoom + " y " + maxZoom + "."
-            );
+        var zoom = map.getZoom();
+
+        if (!ZOOMS_PERMITIDOS.includes(zoom)) {{
+
+            if (zoom < Math.min(...ZOOMS_PERMITIDOS)) {{
+                showAlert("Acércate más (zoom actual: " + zoom + ")");
+            }} else {{
+                showAlert("Aléjate un poco (zoom actual: " + zoom + ")");
+            }}
+
             return;
         }}
 
         var mapContainer = document.getElementsByClassName("folium-map")[0];
-        if (!mapContainer) {{
-            window.showAlert("❌ No se encontró el contenedor del mapa.");
-            return;
-        }}
 
-        var toHide = document.querySelectorAll(
-            '#capture-btn, #search-container, .leaflet-control-layers-toggle, .leaflet-control-zoom, .leaflet-control-attribution, .leaflet-control-scale'
-        );
+        html2canvas(mapContainer, {{
+            useCORS: true,
+            scale: 1
+        }}).then(function(fullCanvas) {{
 
-        toHide.forEach(function(el) {{
-            el.style.visibility = 'hidden';
-        }});
+            var startX = Math.floor((fullCanvas.width - CAPTURE_SIZE) / 2);
+            var startY = Math.floor((fullCanvas.height - CAPTURE_SIZE) / 2);
 
-        html2canvas(mapContainer, {{useCORS: true}}).then(function(canvas) {{
+            var canvas = document.createElement("canvas");
+            canvas.width = CAPTURE_SIZE;
+            canvas.height = CAPTURE_SIZE;
 
-            toHide.forEach(function(el) {{
-                el.style.visibility = 'visible';
-            }});
+            var ctx = canvas.getContext("2d");
 
-            var link = document.createElement('a');
-            link.download = 'mapa_limpio.png';
+            ctx.drawImage(
+                fullCanvas,
+                startX, startY, CAPTURE_SIZE, CAPTURE_SIZE,
+                0, 0, CAPTURE_SIZE, CAPTURE_SIZE
+            );
+
+            // DESCARGAR IMAGEN
+            var link = document.createElement("a");
+            link.download = "mapa_limpio.png";
             link.href = canvas.toDataURL();
             link.click();
-        }}).catch(function(err) {{
 
-            toHide.forEach(function(el) {{
-                el.style.visibility = 'visible';
-            }});
+            // BBOX
+            var tl = map.containerPointToLatLng([startX, startY]);
+            var tr = map.containerPointToLatLng([startX + CAPTURE_SIZE, startY]);
+            var br = map.containerPointToLatLng([startX + CAPTURE_SIZE, startY + CAPTURE_SIZE]);
+            var bl = map.containerPointToLatLng([startX, startY + CAPTURE_SIZE]);
 
-            console.error(err);
-            window.showAlert("Error al capturar la imagen.");
+            var center = map.getCenter();
+
+            var pointCenter = map.latLngToContainerPoint(center);
+            var right = map.containerPointToLatLng([pointCenter.x + 1, pointCenter.y]);
+            var down = map.containerPointToLatLng([pointCenter.x, pointCenter.y + 1]);
+
+            var mppX = center.distanceTo(right);
+            var mppY = center.distanceTo(down);
+
+            var metadata = {{
+                width: canvas.width,
+                height: canvas.height,
+                zoom: zoom,
+                center: {{ lat: center.lat, lon: center.lng }},
+                bbox: {{
+                    top_left: tl,
+                    top_right: tr,
+                    bottom_right: br,
+                    bottom_left: bl
+                }},
+                meters_per_pixel: {{
+                    x: mppX,
+                    y: mppY,
+                    area_m2_per_pixel: mppX * mppY
+                }}
+            }};
+
+            var blob = new Blob([JSON.stringify(metadata, null, 4)], {{type: "application/json"}});
+            var url = URL.createObjectURL(blob);
+
+            var jsonLink = document.createElement("a");
+            jsonLink.download = "mapa_limpio_metadata.json";
+            jsonLink.href = url;
+            jsonLink.click();
+
         }});
     }};
 }});
 </script>
-"""
-
-mapa.get_root().html.add_child(folium.Element(boton_captura))
+"""))
 
 # ---------------------------------------------------
-# BARRA DE BÚSQUEDA + ENTER + LOADING + FLYTO
+# BÚSQUEDA
 # ---------------------------------------------------
-barra_busqueda = f"""
-<style>
-#search-container {{
-    position: absolute;
-    top: 10px;
-    left: 575px;
-    z-index: 999999;
-    background: white;
-    padding: 6px;
-    border-radius: 6px;
-    border: 1px solid #333;
-    box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
-    display: flex;
-    gap: 4px;
-}}
-#search-input {{
-    width: 220px;
-    padding: 4px;
-    border: 1px solid #aaa;
-    border-radius: 4px;
-}}
-#search-btn {{
-    padding: 4px 8px;
-    border-radius: 4px;
-    border: 1px solid #333;
-    background: #eeeeee;
-    cursor: pointer;
-}}
-#search-btn:hover {{
-    background: #dddddd;
-}}
 
-@media (max-width: 768px) {{
-    #search-container {{
-        top: 50px;
-        left: 10px;
-        max-width: 80vw;
-    }}
-    #search-input {{
-        width: 150px;
-        font-size: 12px;
-    }}
-    #search-btn {{
-        padding: 4px 6px;
-        font-size: 12px;
-    }}
-}}
-</style>
-
-<div id="search-container">
-    <input id="search-input" type="text" placeholder="Buscar dirección..." />
-    <button id="search-btn">Buscar</button>
+mapa.get_root().html.add_child(folium.Element(f"""
+<div style="position:absolute;top:10px;left:50px;z-index:999999;background:white;padding:5px;border-radius:5px;">
+<input id="search" placeholder="Buscar dirección"/>
+<button onclick="buscar()">Buscar</button>
 </div>
 
 <script>
-window.addEventListener('load', function() {{
-    var map = {nombre_mapa};
-    var searchMarker = null;
+function buscar() {{
+    var q = document.getElementById("search").value;
 
-    var btn = document.getElementById("search-btn");
-    var input = document.getElementById("search-input");
-
-    if (!btn || !input) {{
-        console.error("No se encontró el input o el botón de búsqueda.");
-        return;
-    }}
-
-    function ejecutarBusqueda() {{
-        var query = input.value.trim();
-        if (!query) {{
-            if (window.showAlert) {{
-                window.showAlert("Introduce una dirección.");
-            }} else {{
-                alert("Introduce una dirección.");
-            }}
-            return;
-        }}
-
-        var url = "http://localhost:8000/geocode?direccion=" + encodeURIComponent(query);
-
-        if (window.showLoading) {{
-            window.showLoading();
-        }}
-
-        fetch(url)
-        .then(function(response) {{
-            if (!response.ok) {{
-                throw new Error("No se encontró la dirección");
-            }}
-            return response.json();
-        }})
-        .then(function(data) {{
-            if (window.hideLoading) {{
-                window.hideLoading();
-            }}
-
-            var lat = data.lat;
-            var lon = data.lon;
-            var nombre = data.display_name || query;
-
-            if (searchMarker) {{
-                map.removeLayer(searchMarker);
-            }}
-
-            searchMarker = L.marker([lat, lon]).addTo(map).bindPopup(nombre).openPopup();
-
-            // Movimiento suave
-            map.flyTo([lat, lon], 19, {{
-                animate: true,
-                duration: 1.2
-            }});
-        }})
-        .catch(function(error) {{
-            console.error(error);
-            if (window.hideLoading) {{
-                window.hideLoading();
-            }}
-            if (window.showAlert) {{
-                window.showAlert("Error al buscar la dirección");
-            }} else {{
-                alert("Error al buscar la dirección.");
-            }}
-        }});
-    }}
-
-    // Click en el botón = buscar
-    btn.addEventListener('click', ejecutarBusqueda);
-
-    // ENTER en el input = buscar también
-    input.addEventListener('keydown', function(e) {{
-        if (e.key === 'Enter' || e.keyCode === 13) {{
-            e.preventDefault();
-            ejecutarBusqueda();
-        }}
+    fetch("http://localhost:8000/geocode?direccion=" + encodeURIComponent(q))
+    .then(r => r.json())
+    .then(data => {{
+        var map = {nombre_mapa};
+        map.flyTo([data.lat, data.lon], 19);
     }});
-}});
+}}
 </script>
-"""
-
-mapa.get_root().html.add_child(folium.Element(barra_busqueda))
-
-# ---------------------------------------------------
+"""))
 
 mapa.save("mapa.html")
-print("Mapa guardado como 'mapa.html'")
+print("Mapa listo")

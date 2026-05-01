@@ -1,45 +1,75 @@
 #!/usr/bin/env bash
 set -e
 
-echo "==> Waiting for HDFS..."
+echo "==> Creando estructura SILVER..."
 
-gribBASE="/datalake/datos/silver/Clima"
+climaBASE="/datalake/datos/silver/Clima"
+imagBASE="/datalake/datos/silver/Imagenes"
+luzBASE="/datalake/datos/silver/luz"
+combinadoBASE="$luzBASE/precio/suelto"
 
-echo "==> Creating CSV tile structure..."
+# ============================================================
+# BASES
+# ============================================================
 
-# Crear base
-hdfs dfs -mkdir -p $gribBASE
+hdfs dfs -mkdir -p \
+  "$climaBASE" \
+  "$imagBASE/Produccion" \
+  "$imagBASE/Entreno/test" \
+  "$imagBASE/Entreno/train" \
+  "$imagBASE/Entreno/train_mask" \
+  "$imagBASE/Entreno/validate" \
+  "$imagBASE/Entreno/validate_mask" \
+  "$luzBASE/precio/suelto" \
+  "$luzBASE/precio/combinado" \
+  "$luzBASE/gas" \
+  "$luzBASE/eolica" \
+  "$luzBASE/solar" \
+  "$combinadoBASE"
 
-# Loop tiles (01 a 36)
-for tile in $(seq -w 1 36); do
-  TILE_PATH="$gribBASE/tile${tile}"
-  hdfs dfs -mkdir -p $TILE_PATH
+# ============================================================
+# COMBINADO 2018–2025
+# ============================================================
 
-  # Años 2000 a 2025
-  for year in $(seq 2000 2025); do
-    YEAR_PATH="$TILE_PATH/$year"
-    hdfs dfs -mkdir -p $YEAR_PATH
+echo "==> Creando estructura combinada anual..."
+
+hdfs dfs -mkdir -p \
+  "$combinadoBASE/2018" \
+  "$combinadoBASE/2019" \
+  "$combinadoBASE/2020" \
+  "$combinadoBASE/2021" \
+  "$combinadoBASE/2022" \
+  "$combinadoBASE/2023" \
+  "$combinadoBASE/2024" \
+  "$combinadoBASE/2025"
+
+echo "==> SILVER structure created successfully."
+
+# ============================================================
+# TILES CLIMA + IMÁGENES PRODUCCIÓN
+# ============================================================
+
+echo "==> Creando estructura de tiles..."
+
+for i in $(seq 1 36); do
+  tile=$(printf "%02d" "$i")
+
+  hdfs dfs -mkdir -p \
+    "$climaBASE/tile${tile}" \
+    "$imagBASE/Produccion/tile${tile}"
+done
+
+# ============================================================
+# AÑOS CLIMA
+# ============================================================
+
+echo "==> Creando estructura anual de Clima..."
+
+for year in $(seq 2000 2025); do
+  for i in $(seq 1 36); do
+    tile=$(printf "%02d" "$i")
+
+    hdfs dfs -mkdir -p "$climaBASE/tile${tile}/$year"
   done
 done
 
-echo "==> Creating CSV tile structure..."
-
-imagBASE="/datalake/datos/silver/Imagenes"
-
-imagBASE="/datalake/datos/silver/Imagenes/Produccion"
-
-for tile in $(seq -w 1 36); do
-  TILE_PATH="$imagBASE/tile${tile}"
-  hdfs dfs -mkdir -p $TILE_PATH 
-done
-
-imagBASE="/datalake/datos/silver/Imagenes/Entreno"
-
-hdfs dfs -mkdir -p $imagBASE/test
-hdfs dfs -mkdir -p $imagBASE/train_mask
-hdfs dfs -mkdir -p $imagBASE/train
-hdfs dfs -mkdir -p $imagBASE/train_mask
-hdfs dfs -mkdir -p $imagBASE/validate
-hdfs dfs -mkdir -p $imagBASE/validate_mask
-
-echo "==> Image structure created successfully."
