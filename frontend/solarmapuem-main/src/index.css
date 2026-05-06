@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* SolarMap design system. All colors HSL. */
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --background-alt: 50 33% 97%;
+    --foreground: 219 51% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 219 51% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 219 51% 12%;
+
+    /* Navy */
+    --primary: 219 51% 12%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 50 33% 97%;
+    --secondary-foreground: 219 51% 12%;
+
+    --muted: 40 20% 95%;
+    --muted-foreground: 219 14% 40%;
+
+    /* Amber CTA — #E8970A */
+    --accent: 39 92% 47%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Solar yellow */
+    --solar: 44 100% 48%;
+    --solar-foreground: 219 51% 12%;
+
+    /* Trust green */
+    --trust: 146 50% 36%;
+    --trust-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 30 15% 90%;
+    --input: 30 15% 90%;
+    --ring: 39 92% 47%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold tracking-tight;
+  }
+}
+
+@layer components {
+  .container-page {
+    @apply max-w-7xl mx-auto px-6 lg:px-8;
+  }
+}
+
+/* Leaflet popup overrides */
+.leaflet-popup-content-wrapper {
+  border-radius: 12px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.leaflet-container {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}

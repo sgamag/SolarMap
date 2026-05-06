@@ -1,5 +1,6 @@
 import folium
 from peticion_direcciones import geocode_osm
+
 # ---------------------------------------------------
 # CONFIG
 # ---------------------------------------------------
@@ -242,7 +243,7 @@ window.addEventListener('load', function() {{
             formData.append("image", imageBlob, "mapa_limpio.png");
             formData.append("metadata", JSON.stringify(metadata));
 
-            var response = await fetch("http://127.0.0.1:8000/detect-roofs", {{
+            var response = await fetch("http://localhost:8001/detect-roofs", {{
                 method: "POST",
                 body: formData
             }});
@@ -289,7 +290,7 @@ mapa.get_root().html.add_child(folium.Element(f"""
 function buscar() {{
     var q = document.getElementById("search").value;
 
-    fetch("http://127.0.0.1:8000/geocode?direccion=" + encodeURIComponent(q))
+    fetch("http://localhost:8001/geocode?direccion=" + encodeURIComponent(q))
     .then(r => r.json())
     .then(data => {{
         var map = {nombre_mapa};

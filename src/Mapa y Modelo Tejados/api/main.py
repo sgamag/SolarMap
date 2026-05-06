@@ -1,7 +1,8 @@
 import os
 import uuid
+import requests
 
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from modelo_web.modelo_resumido import cargar_modelo, detectar_tejados
@@ -31,7 +32,36 @@ print("Modelo cargado correctamente")
 
 @app.get("/")
 def root():
-    return {"status": "API funcionando"}
+    return {"status": "API tejados funcionando"}
+
+
+@app.get("/geocode")
+def geocode_endpoint(direccion: str):
+    url = "https://nominatim.openstreetmap.org/search"
+
+    params = {
+        "q": direccion,
+        "format": "json",
+        "limit": 1
+    }
+
+    headers = {
+        "User-Agent": "SolarMap/1.0"
+    }
+
+    r = requests.get(url, params=params, headers=headers, timeout=20)
+    r.raise_for_status()
+
+    data = r.json()
+
+    if not data:
+        raise HTTPException(status_code=404, detail="Dirección no encontrada")
+
+    return {
+        "lat": float(data[0]["lat"]),
+        "lon": float(data[0]["lon"]),
+        "display_name": data[0]["display_name"]
+    }
 
 
 @app.post("/detect-roofs")
