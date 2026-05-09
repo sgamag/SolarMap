@@ -1,53 +1,57 @@
+# Script para excluir dependencias, credenciales y volumnes de datos del control de versiones.
+
+# 1. Entornos virtuales y dependencias de Python
 .venv/
 venv/
 
+# 2. Credenciales y variables de entorno 
 .env
 token_cdse.json
+.cdsapirc
 
+# 3. Datos climaticos crudos y procesados (Capa Raw/Silver)
 radiacion.csv
 radiacion.grib
 radiacion.grib.47d85.idx
-
 era5_completo.csv
 dataset_potencial_solar.csv
 era5_completo.grib
 era5_completo.grib.02ccc.idx
 
-
+# 4. Salidas visuales, imagenes y renders
 imagenes/
+mapa.html
+src/mapa.html
+*.jpg
 
-# --- NUEVO: para evitar archivos automáticos o innecesarios ---
-
-# Archivos de caché y compilados de Python
+# 5. Archivos de cache y compilados de Python 
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 *.pdb
 
-# Carpetas y salidas temporales
+# 6. Carpetas de datos locales y salidas temporales
 out/
 data/raw
 data/csv
 previews/
 
-# Archivos grandes o intermedios
+# 7. Archivos pesados o extensiones genericas de datos intermedios
 *.zip
 *.nc
 *.nc4
 *.json
 
-# Archivos ocultos del sistema o IDE
+# 8. Archivos ocultos del sistema operativo o metadatos del IDE
 .DS_Store
 .ipynb_checkpoints/
-*.jpg
 
-# 
-.cdsapirc
-
-mapa.html
-src/mapa.html
-
-# --- NUEVO: Ignorar carpetas masivas de Copernicus ---
+# 9. Carpetas masivas de ingesta de Copernicus
 **/data_Ingesta/
 **/csv_potencial/
+
+
+**/src/data/csv/
+**/*_potencial.csv
+**/2024_*.csv
