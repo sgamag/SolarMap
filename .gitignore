@@ -1,57 +1,57 @@
-# Script para excluir dependencias, credenciales y volumnes de datos del control de versiones.
+# ==============================================================================
+# ARCHIVO DE CONFIGURACION: .gitignore
+# Objetivo: Excluir dependencias, credenciales, temporales y volumenes de datos.
+# Estrategia: Bloqueo global por extension para asegurar la higiene del repositorio.
+# ==============================================================================
 
 # 1. Entornos virtuales y dependencias de Python
 .venv/
 venv/
 
-# 2. Credenciales y variables de entorno 
+# 2. Seguridad, credenciales y variables de entorno
 .env
-token_cdse.json
 .cdsapirc
+token_cdse.json
 
-# 3. Datos climaticos crudos y procesados (Capa Raw/Silver)
-radiacion.csv
-radiacion.grib
-radiacion.grib.47d85.idx
-era5_completo.csv
-dataset_potencial_solar.csv
-era5_completo.grib
-era5_completo.grib.02ccc.idx
+# 3. Archivos del sistema operativo y metadatos de IDEs
+.DS_Store
+.ipynb_checkpoints/
 
-# 4. Salidas visuales, imagenes y renders
-imagenes/
-mapa.html
-src/mapa.html
-*.jpg
-
-# 5. Archivos de cache y compilados de Python 
+# 4. Archivos de cache y compilados de Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 *.pdb
 
-# 6. Carpetas de datos locales y salidas temporales
-out/
-data/raw
-data/csv
-previews/
+# 5. Salidas visuales y HTML
+imagenes/
+mapa.html
+*.jpg
 
-# 7. Archivos pesados o extensiones genericas de datos intermedios
-*.zip
+# ==============================================================================
+# EXCLUSIONES DE DATOS (OPCION NUCLEAR POR EXTENSION)
+# ==============================================================================
+
+# 6. Bloqueo absoluto de formatos de datos y compresión en todo el proyecto
+*.csv
+*.grib
 *.nc
 *.nc4
 *.json
+*.idx
+*.zip
 
-# 8. Archivos ocultos del sistema operativo o metadatos del IDE
-.DS_Store
-.ipynb_checkpoints/
+# 7. Carpetas de salidas generales temporales
+out/
+previews/
 
-# 9. Carpetas masivas de ingesta de Copernicus
-**/data_Ingesta/
-**/csv_potencial/
+# ==============================================================================
+# EXCEPCIONES (ARCHIVOS QUE SI SE DEBEN SUBIR)
+# ==============================================================================
 
-
-**/src/data/csv/
-**/*_potencial.csv
-**/2024_*.csv
+# Si en algun momento el equipo necesita compartir un archivo especifico 
+# (por ejemplo, un catalogo o unos datos de prueba), se debe autorizar aqui.
+# Ejemplo de uso:
+# !src/data/catalogos/municipios_madrid.csv
+# !configuracion_inicial.json
