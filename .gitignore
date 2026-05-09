@@ -27,7 +27,6 @@ __pycache__/
 # 5. Salidas visuales y HTML
 imagenes/
 mapa.html
-*.jpg
 
 # ==============================================================================
 # EXCLUSIONES DE DATOS (OPCION NUCLEAR POR EXTENSION)
