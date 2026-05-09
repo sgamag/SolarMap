@@ -38,7 +38,6 @@ mapa.html
 *.grib
 *.nc
 *.nc4
-*.json
 *.idx
 *.zip
 
@@ -49,9 +48,3 @@ previews/
 # ==============================================================================
 # EXCEPCIONES (ARCHIVOS QUE SI SE DEBEN SUBIR)
 # ==============================================================================
-
-# Si en algun momento el equipo necesita compartir un archivo especifico 
-# (por ejemplo, un catalogo o unos datos de prueba), se debe autorizar aqui.
-# Ejemplo de uso:
-# !src/data/catalogos/municipios_madrid.csv
-# !configuracion_inicial.json
