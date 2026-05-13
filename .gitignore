@@ -1,53 +1,49 @@
+# ==============================================================================
+# ARCHIVO DE CONFIGURACION: .gitignore
+# Objetivo: Excluir dependencias, credenciales, temporales y volumenes de datos.
+# Estrategia: Bloqueo global por extension para asegurar la higiene del repositorio.
+# ==============================================================================
+
+# 1. Entornos virtuales y dependencias de Python
 .venv/
 venv/
 
+# 2. Seguridad, credenciales y variables de entorno
 .env
+.cdsapirc
 token_cdse.json
 
-radiacion.csv
-radiacion.grib
-radiacion.grib.47d85.idx
+# 3. Archivos del sistema operativo y metadatos de IDEs
+.DS_Store
+.ipynb_checkpoints/
 
-era5_completo.csv
-dataset_potencial_solar.csv
-era5_completo.grib
-era5_completo.grib.02ccc.idx
-
-
-imagenes/
-
-# --- NUEVO: para evitar archivos automáticos o innecesarios ---
-
-# Archivos de caché y compilados de Python
+# 4. Archivos de cache y compilados de Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 *.pdb
 
-# Carpetas y salidas temporales
-out/
-data/raw
-data/csv
-previews/
+# 5. Salidas visuales y HTML
+imagenes/
+mapa.html
 
-# Archivos grandes o intermedios
-*.zip
+# ==============================================================================
+# EXCLUSIONES DE DATOS (OPCION NUCLEAR POR EXTENSION)
+# ==============================================================================
+
+# 6. Bloqueo absoluto de formatos de datos y compresión en todo el proyecto
+*.csv
+*.grib
 *.nc
 *.nc4
-*.json
+*.idx
+*.zip
 
-# Archivos ocultos del sistema o IDE
-.DS_Store
-.ipynb_checkpoints/
-*.jpg
+# 7. Carpetas de salidas generales temporales
+out/
+previews/
 
-# 
-.cdsapirc
-
-mapa.html
-src/mapa.html
-
-# --- NUEVO: Ignorar carpetas masivas de Copernicus ---
-**/data_Ingesta/
-**/csv_potencial/
+# ==============================================================================
+# EXCEPCIONES (ARCHIVOS QUE SI SE DEBEN SUBIR)
+# ==============================================================================
