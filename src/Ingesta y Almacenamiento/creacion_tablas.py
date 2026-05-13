@@ -108,7 +108,8 @@ TABLAS_SQL = [
     CREATE TABLE IF NOT EXISTS dim_caracteristicas_tejado (
         id_caracteristica   INT             AUTO_INCREMENT PRIMARY KEY,
         tamaño_categoria    VARCHAR(50)     NOT NULL,
-        orientacion_principal VARCHAR(20)   NOT NULL
+        orientacion_principal VARCHAR(20)   NOT NULL,
+        horas_sol            INT            NOT NULL,
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
 
@@ -118,7 +119,8 @@ TABLAS_SQL = [
         id_escenario          INT             PRIMARY KEY,
         nombre_escenario      VARCHAR(50)     NOT NULL,
         banda_prediccion      VARCHAR(20)     NOT NULL,
-        descripcion_tendencia VARCHAR(150)    NOT NULL
+        descripcion_tendencia VARCHAR(150)    NOT NULL,
+        precio_medio_luz      DOUBLE          NOT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
 
@@ -134,6 +136,16 @@ TABLAS_SQL = [
         nombre_proveedor                VARCHAR(100)    NOT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
+    """
+        CREATE TABLE IF NOT EXISTS precio_luz (
+            id_prediccion INT AUTO_INCREMENT PRIMARY KEY,
+            año INT NOT NULL,
+            mes TINYINT NOT NULL,
+            precio_luz DOUBLE NOT NULL,
+            escenario VARCHAR(50) NOT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """,
+
 
     # TABLAS DE HECHOS
 
@@ -208,17 +220,17 @@ TABLAS_SQL = [
     CREATE TABLE IF NOT EXISTS fact_simulacion_roi (
         id_simulacion               BIGINT      AUTO_INCREMENT PRIMARY KEY,
         id_tejado                   BIGINT      NOT NULL,
-        id_panel                    INT         NOT NULL,
-        id_escenario                INT         NOT NULL,
+       -- id_panel                    INT         NOT NULL,
+        --id_escenario                INT         NOT NULL,
         id_usuario                  VARCHAR(64) NOT NULL,
         id_sesion                   VARCHAR(64) NULL,
 
-        numero_paneles_instalados   INT         NOT NULL,
-        energia_generada_anual_kwh  DOUBLE      NOT NULL,
-        inversion_inicial_euros     DOUBLE      NOT NULL,
-        ahorro_primer_año_euros     DOUBLE      NOT NULL,
-        tiempo_amortizacion_años    DOUBLE      NOT NULL,
-        roi_porcentaje              DOUBLE      NOT NULL,
+        --numero_paneles_instalados   INT         NOT NULL,
+        --energia_generada_anual_kwh  DOUBLE      NOT NULL,
+        --inversion_inicial_euros     DOUBLE      NOT NULL,
+        --ahorro_primer_año_euros     DOUBLE      NOT NULL,
+        --tiempo_amortizacion_años    DOUBLE      NOT NULL,
+        --roi_porcentaje              DOUBLE      NOT NULL,
         timestamp_simulacion        DATETIME    NOT NULL,
 
         CONSTRAINT fk_roi_tejado    FOREIGN KEY (id_tejado)     REFERENCES fact_tejados_detectados(id_tejado),
