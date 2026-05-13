@@ -160,7 +160,7 @@ export default function MapaSolar() {
 
         <div style={{ flex: 1, position: "relative" }}>
           <iframe
-            src="/mapa.html"
+            src="/mapa.html?v=2"
             title="Mapa Solar"
             style={{ width: "100%", height: "100%", border: "none" }}
           />
