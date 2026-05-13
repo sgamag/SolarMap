@@ -1,21 +1,3 @@
-"""
-ETL clima desde HDFS usando WebHDFS + Polars.
-
-Entrada:
-  /datalake/datos/bronze/csv/tile01/2013/2013_04.csv
-
-Salida:
-  /datalake/datos/silver/Clima/tile01/2013/2013_04_potencial.csv
-
-Características:
-- No usa docker exec.
-- Pensado para ejecutarse dentro del contenedor etl_clima.
-- Lista bronze una vez.
-- Lista silver una vez.
-- Procesa solo lo pendiente.
-- Procesa por lotes tile/año.
-- Usa 3 workers.
-"""
 
 from pathlib import Path
 from collections import defaultdict
