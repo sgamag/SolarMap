@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -7,7 +8,7 @@ import re
 # CONFIGURACIÓN
 # ============================================================
 
-ruta_proyecto = Path(r"C:\Users\sergi\OneDrive\Escritorio\Universidad\BigData\ProyectoBigData")
+ruta_proyecto = Path(os.getenv("Ruta_Datalake", "."))
 
 # Contenedor Docker donde ejecutar comandos HDFS
 nombre_contenedor = "solarmap_namenode"
