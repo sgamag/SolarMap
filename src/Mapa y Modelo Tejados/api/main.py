@@ -197,11 +197,13 @@ async def registrar_usuario(datos: FormularioRegistro):
 
     try:
         conn = mysql.connector.connect(
-            host="10.151.30.2",
-            user="bd_rvm_solar_map",
-            password="Mar123Qz",
-            database="bd_rvm_solar_map"
-        )
+        host="10.151.30.2",
+        port=3306,
+        user="bd_rvm_solar_map",
+        password=os.getenv("DB_PASS", "Mar123Qz"),
+        database="bd_rvm_solar_map",
+        ssl_disabled=True
+    )
 
         cursor = conn.cursor()
 
