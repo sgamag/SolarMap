@@ -8,14 +8,15 @@ ZOOMS_PERMITIDOS = [18, 19]
 CAPTURE_SIZE = 256
 coords = geocode_osm(direccion)
 if coords is None:
-raise SystemExit("No se encontró la dirección inicial.")
+    raise SystemExit("No se encontró la dirección inicial.")
 lat, lon = coords
 mapa = folium.Map(location=[lat, lon], zoom_start=19)
 folium.TileLayer(
-tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{attr="Tiles © Esri",
-name="Satélite",
-max_native_zoom=19,
-max_zoom=22
+    tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    attr="Tiles © Esri",
+    name="Satélite",
+    max_native_zoom=19,
+    max_zoom=22
 ).add_to(mapa)
 nombre_mapa = mapa.get_name()
 mapa.get_root().header.add_child(folium.Element("""
