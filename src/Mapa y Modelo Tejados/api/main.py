@@ -3,7 +3,8 @@ import uuid
 import requests
 import hashlib
 import mysql.connector
-from datetime import date
+from datetime import date, datetime
+import csv
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -110,73 +111,61 @@ class DatosTejadoSeleccionado(BaseModel):
 
 @app.post("/seleccionar-tejado")
 async def seleccionar_tejado(datos: DatosTejadoSeleccionado):
+    carpeta_csv = os.path.join(
+        os.getcwd(),
+        "src",
+        "Ingesta y Almacenamiento",
+        "datos_tejados_detectados"
+    )
+
+    os.makedirs(carpeta_csv, exist_ok=True)
+
+    ruta_csv = os.path.join(carpeta_csv, "tejados_detectados_web.csv")
+
+    existe_archivo = os.path.exists(ruta_csv)
+
     area_total_bruta = round(datos.area_m2, 2)
-    area_util = round(datos.area_m2 * 0.85, 2)
-    id_caracteristica = 1
+    area_util = round(datos.area_m2 * 0.4, 2)
+
+    fila = {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "latitud": datos.lat,
+        "longitud": datos.lon,
+        "area_total_bruta_m2": area_total_bruta,
+        "area_util_m2": area_util,
+        "orientacion_grados": datos.orientation_angle_degrees,
+        "orientacion_principal": datos.orientation_label,
+        "potencial_final": ""
+    }
+
+    columnas = [
+        "timestamp",
+        "latitud",
+        "longitud",
+        "area_total_bruta_m2",
+        "area_util_m2",
+        "orientacion_grados",
+        "orientacion_principal",
+        "potencial_final"
+    ]
 
     try:
-        conn = mysql.connector.connect(
-            host="10.151.30.2",
-            user="bd_rvm_solar_map",
-            password="Mar123Qz",
-            database="bd_rvm_solar_map"
-        )
+        with open(ruta_csv, "a", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=columnas)
 
-        cursor = conn.cursor()
+            if not existe_archivo:
+                writer.writeheader()
 
-        cursor.execute("""
-            SELECT id_zona
-            FROM dim_zona
-            WHERE %s BETWEEN sur_lat_min AND norte_lat_max
-            AND %s BETWEEN oeste_lon_min AND este_lon_max
-            LIMIT 1
-        """, (datos.lat, datos.lon))
-
-        res_zona = cursor.fetchone()
-        id_zona = res_zona[0] if res_zona else "tile_generico"
-
-        query = """
-            INSERT INTO fact_tejados_detectados
-            (
-                id_zona,
-                id_caracteristica,
-                latitud,
-                longitud,
-                area_total_bruta_m2,
-                area_util_m2,
-                orientacion_grados,
-                orientacion_principal,
-                potencial_final
-            )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NULL)
-        """
-
-        cursor.execute(query, (
-            id_zona,
-            id_caracteristica,
-            datos.lat,
-            datos.lon,
-            area_total_bruta,
-            area_util,
-            datos.orientation_angle_degrees,
-            datos.orientation_label
-        ))
-
-        conn.commit()
+            writer.writerow(fila)
 
         return {
             "status": "success",
-            "mensaje": "Tejado guardado correctamente",
-            "id_tejado": cursor.lastrowid
+            "mensaje": "Tejado guardado en CSV correctamente",
+            "ruta_csv": ruta_csv
         }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-    finally:
-        if "conn" in locals() and conn.is_connected():
-            cursor.close()
-            conn.close()
 
 
 class FormularioRegistro(BaseModel):
