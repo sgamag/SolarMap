@@ -10,6 +10,7 @@ import { toast } from "sonner";
 export default function Registro() {
   const { register } = useAuth();
   const navigate = useNavigate();
+  const [cargando, setCargando] = useState(false);
   const [form, setForm] = useState({
     nombre: "",
     apellidos: "",
@@ -28,16 +29,23 @@ export default function Registro() {
       toast.error("Las contraseñas no coinciden");
       return;
     }
-    await register({
-      nombre: form.nombre,
-      apellidos: form.apellidos,
-      email: form.email,
-      password: form.password,
-      fechaNacimiento: form.fechaNacimiento,
-      codigoPostal: form.codigoPostal,
-    });
-    toast.success("Cuenta creada (simulada)");
-    navigate("/");
+    setCargando(true);
+    try {
+      await register({
+        nombre: form.nombre,
+        apellidos: form.apellidos,
+        email: form.email,
+        password: form.password,
+        fechaNacimiento: form.fechaNacimiento,
+        codigoPostal: form.codigoPostal,
+      });
+      toast.success("Cuenta creada con éxito");
+      navigate("/");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo crear la cuenta");
+    } finally {
+      setCargando(false);
+    }
   };
 
   return (
@@ -96,8 +104,8 @@ export default function Registro() {
               />
             </div>
           </div>
-          <Button type="submit" variant="coral" className="w-full" size="lg">
-            Crear cuenta
+          <Button type="submit" variant="coral" className="w-full" size="lg" disabled={cargando}>
+            {cargando ? "Creando cuenta..." : "Crear cuenta"}
           </Button>
           <div className="text-sm text-center">
             <Link to="/login" className="text-accent hover:underline font-medium">¿Ya tienes cuenta? Inicia sesión</Link>

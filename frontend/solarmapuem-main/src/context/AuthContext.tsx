@@ -1,4 +1,13 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useState, ReactNode } from "react";
+
+// ----------------------------------------------------------------------------
+// Configuracion
+// ----------------------------------------------------------------------------
+const API_URL = "http://localhost:8002";
+
+// ----------------------------------------------------------------------------
+// Tipos
+// ----------------------------------------------------------------------------
 
 export type SavedAddress = {
   id: string;
@@ -8,6 +17,7 @@ export type SavedAddress = {
 };
 
 export type SolarUser = {
+  id_usuario?: string;
   nombre: string;
   apellidos: string;
   email: string;
@@ -20,7 +30,7 @@ type AuthContextValue = {
   user: SolarUser | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (data: Omit<SolarUser, "savedAddresses"> & { password: string }) => Promise<void>;
+  register: (data: Omit<SolarUser, "savedAddresses" | "id_usuario"> & { password: string }) => Promise<void>;
   logout: () => void;
   updateUser: (data: Partial<SolarUser>) => void;
   saveAddress: (address: string, roofId?: string) => void;
@@ -31,17 +41,27 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 const STORAGE_KEY = "solarmap.user";
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<SolarUser | null>(null);
+// ----------------------------------------------------------------------------
+// Lee el usuario de localStorage de forma SINCRONA.
+// Asi el primer render ya tiene el usuario (evita parpadeo y redireccion a login).
+// ----------------------------------------------------------------------------
+function leerUsuarioInicial(): SolarUser | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setUser(JSON.parse(raw));
-    } catch {
-      // ignore
-    }
-  }, []);
+// ----------------------------------------------------------------------------
+// Provider
+// ----------------------------------------------------------------------------
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  // Inicializacion sincrona desde localStorage
+  const [user, setUser] = useState<SolarUser | null>(() => leerUsuarioInicial());
 
   const persist = (u: SolarUser | null) => {
     setUser(u);
@@ -49,21 +69,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     else localStorage.removeItem(STORAGE_KEY);
   };
 
-  const login = async (email: string, _password: string) => {
-    const existing = user ?? {
-      nombre: "Usuario",
-      apellidos: "Demo",
-      email,
-      fechaNacimiento: "1990-01-01",
-      codigoPostal: "28001",
+  // --- Login: llama a POST /api/auth/login ---
+  const login = async (email: string, password: string) => {
+    const res = await fetch(`${API_URL}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Error desconocido" }));
+      throw new Error(err.detail || "No se pudo iniciar sesion");
+    }
+
+    const data = await res.json();
+    persist({
+      id_usuario: data.id_usuario,
+      nombre: data.nombre,
+      apellidos: data.apellidos,
+      email: data.email,
+      fechaNacimiento: data.fechaNacimiento,
+      codigoPostal: data.codigoPostal,
       savedAddresses: [],
-    };
-    persist({ ...existing, email });
+    });
   };
 
-  const register = async (data: Omit<SolarUser, "savedAddresses"> & { password: string }) => {
-    const { password: _p, ...rest } = data;
-    persist({ ...rest, savedAddresses: [] });
+  // --- Register: llama a POST /api/auth/register ---
+  const register = async (
+    data: Omit<SolarUser, "savedAddresses" | "id_usuario"> & { password: string }
+  ) => {
+    const res = await fetch(`${API_URL}/api/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nombre: data.nombre,
+        apellidos: data.apellidos,
+        email: data.email,
+        password: data.password,
+        fechaNacimiento: data.fechaNacimiento,
+        codigoPostal: data.codigoPostal,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Error desconocido" }));
+      throw new Error(err.detail || "No se pudo crear la cuenta");
+    }
+
+    const out = await res.json();
+    persist({
+      id_usuario: out.id_usuario,
+      nombre: out.nombre,
+      apellidos: out.apellidos,
+      email: out.email,
+      fechaNacimiento: out.fechaNacimiento,
+      codigoPostal: out.codigoPostal,
+      savedAddresses: [],
+    });
   };
 
   const logout = () => persist(null);

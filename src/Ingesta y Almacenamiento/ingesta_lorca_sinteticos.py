@@ -42,7 +42,7 @@ def cargar_tabla(cursor, ruta_carpeta, nombre_tabla):
     ruta_csv = ruta_carpeta / f"{nombre_tabla}.csv"
     
     if not ruta_csv.exists():
-        print(f" No se encontro el archivo {nombre_tabla}.csv. Saltando...")
+        print(f" [AVISO] No se encontro el archivo {nombre_tabla}.csv. Saltando...")
         return
 
     with open(ruta_csv, "r", encoding="utf-8") as f:
@@ -59,7 +59,7 @@ def cargar_tabla(cursor, ruta_carpeta, nombre_tabla):
         
         if filas_procesadas:
             cursor.executemany(query, filas_procesadas)
-            print(f"  OK -> {nombre_tabla} ({len(filas_procesadas)} filas cargadas)")
+            print(f" OK -> {nombre_tabla} ({len(filas_procesadas)} filas cargadas)")
 
 def main():
     try:
@@ -79,7 +79,7 @@ def main():
             # Desactivar temporalmente el chequeo de claves foraneas 
             cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
             
-            # Limpiar datos previos de las tablas que vamos a cargar
+            # Limpiar datos previos de las tablas que vamos a cargar (por si lo corres varias veces)
             print("Limpiando registros previos en tablas seleccionadas...")
             for _, tabla in reversed(TABLAS_A_SUBIR):
                 cursor.execute(f"TRUNCATE TABLE {tabla};")
@@ -88,9 +88,10 @@ def main():
             for carpeta, tabla in TABLAS_A_SUBIR:
                 cargar_tabla(cursor, carpeta, tabla)
 
+            # Volver a activar las claves foráneas
             cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
             conexion.commit()
-            print("Ingesta completada correctamente")
+            print("Ingesta completada correctamente. ¡Base de datos lista!")
 
     except mysql.connector.Error as error:
         print(f"Error durante la ingesta en Lorca: {error}")

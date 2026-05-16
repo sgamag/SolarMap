@@ -1,3 +1,25 @@
+# ============================================================================
+# STAGE 1 - Generar el mapa.html con Python/Folium
+# ============================================================================
+FROM python:3.11-slim AS mapa-builder
+
+WORKDIR /mapa
+
+# Instala dependencias necesarias.
+# fastapi se incluye porque peticion_direcciones.py lo importa a nivel de modulo
+# (aunque mpa_v1.py solo usa la funcion geocode_osm).
+RUN pip install --no-cache-dir folium requests fastapi
+
+# Copia los scripts del mapa
+COPY ["src/Mapa y Modelo Tejados/mapa", "/mapa"]
+
+# Ejecuta el script que genera mapa.html
+RUN python mpa_v1.py
+
+
+# ============================================================================
+# STAGE 2 - Construir la web React
+# ============================================================================
 FROM node:20-alpine AS build
 
 WORKDIR /app
@@ -8,9 +30,15 @@ RUN npm install --legacy-peer-deps
 
 COPY frontend/solarmapuem-main ./
 
+# Copia el mapa.html generado en el stage anterior al public/
+COPY --from=mapa-builder /mapa/mapa.html ./public/mapa.html
+
 RUN npm run build
 
 
+# ============================================================================
+# STAGE 3 - Servir la web con nginx
+# ============================================================================
 FROM nginx:alpine
 
 COPY --from=build /app/dist /usr/share/nginx/html

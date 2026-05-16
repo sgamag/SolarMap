@@ -108,22 +108,33 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.api_tejados
-
     container_name: solarmap_api_tejados
-
     ports:
       - "8001:8000"
-
     working_dir: /app/src/Mapa y Modelo Tejados
-
     volumes:
       - ./src:/app/src
-
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
-
     networks:
       - solarmap_net
+    restart: unless-stopped
 
+  # ===== API WEB (auth: registro, login, perfil) =====
+  api_web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api_web
+    container_name: solarmap_api_web
+    ports:
+      - "8002:8000"
+    environment:
+      DB_HOST: 10.151.30.2
+      DB_PORT: 3306
+      DB_NAME: bd_rvm_solar_map
+      DB_USER: bd_rvm_solar_map
+      DB_PASS: Mar123Qz
+    networks:
+      - solarmap_net
     restart: unless-stopped
 
   # ===== WEB SOLARMAP REACT =====
@@ -131,18 +142,14 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.web_solarmap
-
     container_name: solarmap_web_solarmap
-
     ports:
       - "8081:80"
-
     depends_on:
       - api_tejados
-
+      - api_web
     networks:
       - solarmap_net
-
     restart: unless-stopped
 
 networks:

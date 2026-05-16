@@ -13,13 +13,20 @@ export default function Login() {
   const [params] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [cargando, setCargando] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: fetch('/api/auth/login')
-    await login(email, password);
-    toast.success("Sesión iniciada (simulada)");
-    navigate(params.get("next") || "/");
+    setCargando(true);
+    try {
+      await login(email, password);
+      toast.success("Sesión iniciada");
+      navigate(params.get("next") || "/");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo iniciar sesión");
+    } finally {
+      setCargando(false);
+    }
   };
 
   return (
@@ -38,16 +45,13 @@ export default function Login() {
             <Label htmlFor="password">Contraseña</Label>
             <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
-          <Button type="submit" variant="coral" className="w-full" size="lg">
-            Iniciar sesión
+          <Button type="submit" variant="coral" className="w-full" size="lg" disabled={cargando}>
+            {cargando ? "Iniciando..." : "Iniciar sesión"}
           </Button>
           <div className="flex items-center justify-between text-sm">
             <Link to="/registro" className="text-accent hover:underline font-medium">¿No tienes cuenta? Regístrate</Link>
             <Link to="/recuperar" className="text-muted-foreground hover:underline">¿Olvidaste tu contraseña?</Link>
           </div>
-          <p className="text-xs text-muted-foreground text-center pt-2">
-            Autenticación pendiente de implementación
-          </p>
         </form>
       </div>
     </AuthLayout>

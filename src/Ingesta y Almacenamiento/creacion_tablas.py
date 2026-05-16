@@ -32,6 +32,7 @@ TABLAS_SQL = [
         sur_lat_min         DOUBLE          NOT NULL,
         este_lon_max        DOUBLE          NOT NULL,
         oeste_lon_min       DOUBLE          NOT NULL,
+        potencial_medio     DOUBLE,
         INDEX idx_limites_mapa (sur_lat_min, norte_lat_max, oeste_lon_min, este_lon_max)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
@@ -109,7 +110,7 @@ TABLAS_SQL = [
         id_caracteristica   INT             AUTO_INCREMENT PRIMARY KEY,
         tamaño_categoria    VARCHAR(50)     NOT NULL,
         orientacion_principal VARCHAR(20)   NOT NULL,
-        horas_sol            INT            NOT NULL,
+        horas_sol            INT            NOT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
 
@@ -160,7 +161,6 @@ TABLAS_SQL = [
         temperatura_media_mes   DOUBLE,
         temperatura_maxima_mes  DOUBLE,
         temperatura_minima_mes  DOUBLE,
-        potencial_medio         DOUBLE,
 
         UNIQUE KEY uk_zona_mes (id_zona, mes),
         CONSTRAINT fk_agregado_zona FOREIGN KEY (id_zona) REFERENCES dim_zona(id_zona),
@@ -220,26 +220,15 @@ TABLAS_SQL = [
     CREATE TABLE IF NOT EXISTS fact_simulacion_roi (
         id_simulacion               BIGINT      AUTO_INCREMENT PRIMARY KEY,
         id_tejado                   BIGINT      NOT NULL,
-       -- id_panel                    INT         NOT NULL,
-        --id_escenario                INT         NOT NULL,
         id_usuario                  VARCHAR(64) NOT NULL,
         id_sesion                   VARCHAR(64) NULL,
 
-        --numero_paneles_instalados   INT         NOT NULL,
-        --energia_generada_anual_kwh  DOUBLE      NOT NULL,
-        --inversion_inicial_euros     DOUBLE      NOT NULL,
-        --ahorro_primer_año_euros     DOUBLE      NOT NULL,
-        --tiempo_amortizacion_años    DOUBLE      NOT NULL,
-        --roi_porcentaje              DOUBLE      NOT NULL,
         timestamp_simulacion        DATETIME    NOT NULL,
 
         CONSTRAINT fk_roi_tejado    FOREIGN KEY (id_tejado)     REFERENCES fact_tejados_detectados(id_tejado),
-        CONSTRAINT fk_roi_panel     FOREIGN KEY (id_panel)      REFERENCES dim_panel(id_panel),
-        CONSTRAINT fk_roi_escenario FOREIGN KEY (id_escenario)  REFERENCES dim_escenario_economico(id_escenario),
         CONSTRAINT fk_roi_usuario   FOREIGN KEY (id_usuario)    REFERENCES dim_usuario(id_usuario),
 
-        INDEX idx_analisis_amortizacion (id_tejado, id_escenario),
-        INDEX idx_sesion_roi            (id_sesion)
+        INDEX idx_analisis_amortizacion (id_tejado)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """
 ]
