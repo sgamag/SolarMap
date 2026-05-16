@@ -1,6 +1,8 @@
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import PageLayout from "@/components/PageLayout";
+import { Button } from "@/components/ui/button";
 
 // ─── Configuración Power BI ───────────────────────────────────────────────────
 const POWERBI_BASE_URL =
@@ -9,38 +11,31 @@ const POWERBI_BASE_URL =
   "&autoAuth=true" +
   "&ctid=032115c7-35fe-4637-b2c3-d0a42906ba7b";
 
-// Nombre EXACTO de tabla y campo en el modelo de Power BI
 const PBI_TABLE = "fatc_tejados_detectados";
 const PBI_FIELD = "id_tejado";
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Construye la URL de embedding añadiendo el filtro de Power BI si hay roof_id.
- *
- * Sintaxis del filtro:
- *   &filter=NombreTabla/NombreCampo eq 'valor'
- *
- * Si id_tejado es numérico en tu modelo (no texto), quita las comillas simples:
- *   eq ${roofId}   →  en lugar de   eq '${roofId}'
- */
 function buildEmbedUrl(roofId: string | null): string {
   const url = new URL(POWERBI_BASE_URL);
 
   if (roofId) {
-    // Cambia a eq ${roofId} (sin comillas) si el campo es numérico en Power BI
+    // Si id_tejado es NÚMERO en Power BI → quita las comillas simples alrededor de ${roofId}
     const filter = `${PBI_TABLE}/${PBI_FIELD} eq '${roofId}'`;
     url.searchParams.set("filter", filter);
   }
+
+  // Fuerza la página 1 del report
 
   return url.toString();
 }
 
 export default function AnalisisResumen() {
   const [params] = useSearchParams();
+  const navigate = useNavigate();
   const [loaded, setLoaded] = useState(false);
 
-  const roofId = params.get("roof_id");
+  const roofId   = params.get("roof_id");
   const embedUrl = buildEmbedUrl(roofId);
 
   return (
@@ -48,7 +43,7 @@ export default function AnalisisResumen() {
       {/* Ocupa toda la altura disponible menos la navbar */}
       <div className="relative w-full h-[calc(100vh-4rem)]">
 
-        {/* Loader mientras el iframe inicializa */}
+        {/* Loader mientras Power BI inicializa */}
         {!loaded && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background z-10">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -56,6 +51,7 @@ export default function AnalisisResumen() {
           </div>
         )}
 
+        {/* iframe Power BI */}
         <iframe
           title="CMandosPotencial"
           src={embedUrl}
@@ -65,6 +61,26 @@ export default function AnalisisResumen() {
             loaded ? "opacity-100" : "opacity-0"
           }`}
         />
+
+        {/* ── Botón volver ── abajo izquierda, flotando sobre el iframe */}
+        <div className="absolute bottom-6 left-6 z-20">
+          <Button
+            onClick={() => navigate(-1)}
+            className="
+              bg-[#F5A623] hover:bg-[#e09510]
+              text-white font-semibold
+              rounded-full
+              px-6 py-3
+              shadow-lg
+              flex items-center gap-2
+              transition-colors duration-200
+            "
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Volver
+          </Button>
+        </div>
+
       </div>
     </PageLayout>
   );
