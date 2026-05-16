@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileDown } from "lucide-react";
+import { FileDown, Users } from "lucide-react";
 import PageLayout from "@/components/PageLayout";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -137,7 +137,18 @@ export default function AnalisisResumen() {
           onLoad={() => setLoaded(true)}
         />
 
-        {/* Botón Generar Informe — abajo derecha flotando sobre el iframe */}
+        {/* Botón Contactar Instaladoras — abajo izquierda */}
+        <div className="absolute bottom-6 left-6 z-20">
+          <Button
+            onClick={() => navigate("/analisis/instaladoras")}
+            className="bg-[#F5A623] hover:bg-[#e09510] text-white font-semibold rounded-full px-6 py-3 shadow-lg flex items-center gap-2 transition-colors duration-200"
+          >
+            <Users className="h-4 w-4" />
+            Contactar instaladoras
+          </Button>
+        </div>
+
+        {/* Botón Generar Informe — abajo derecha */}
         <div className="absolute bottom-6 right-6 z-20">
           <Button
             onClick={handleGenerarInforme}

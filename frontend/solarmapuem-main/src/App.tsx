@@ -11,6 +11,7 @@ import Mapa from "./pages/Mapa.tsx";
 import MapaSolar from "./pages/MapaSolar.tsx";
 import AnalisisResumen from "./pages/AnalisisResumen.tsx";
 import AnalisisProveedores from "./pages/AnalisisProveedores.tsx";
+import AnalisisInstaladoras from "./pages/AnalisisInstaladoras.tsx";
 import AnalisisDetalle from "./pages/AnalisisDetalle.tsx";
 import Login from "./pages/Login.tsx";
 import Registro from "./pages/Registro.tsx";
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/analisis" element={<ProtectedRoute><AnalisisResumen /></ProtectedRoute>} />
             <Route path="/analisis/resumen" element={<ProtectedRoute><AnalisisResumen /></ProtectedRoute>} />
             <Route path="/analisis/proveedores" element={<ProtectedRoute><AnalisisProveedores /></ProtectedRoute>} />
+            <Route path="/analisis/instaladoras" element={<ProtectedRoute><AnalisisInstaladoras /></ProtectedRoute>} />
             <Route path="/analisis/detalle" element={<ProtectedRoute><AnalisisDetalle /></ProtectedRoute>} />
             <Route path="/login" element={<Login />} />
             <Route path="/registro" element={<Registro />} />
