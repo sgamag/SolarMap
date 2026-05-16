@@ -2,10 +2,9 @@ import csv
 import io
 import os
 import re
-from pathlib import Path
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import quote, urlparse, urlunparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 import mysql.connector
@@ -117,31 +116,27 @@ def leer_csv_hdfs(ruta_hdfs: str) -> str:
 
 def extraer_tile_desde_ruta(ruta_hdfs: str) -> str:
     partes = ruta_hdfs.split("/")
+
     for parte in partes:
         if parte.startswith("tile"):
             return parte
+
     return ""
 
 
-def procesar_csv_clima(ruta_hdfs: str):
+def procesar_csv_potencial(ruta_hdfs: str):
     """
-    Procesa un CSV de silver y devuelve acumulados parciales:
-      - potencial por zona
-      - clima mensual por zona/mes
+    Procesa un CSV y devuelve el acumulado de potencial por tile.
     """
     texto_csv = leer_csv_hdfs(ruta_hdfs)
-
     lector = csv.DictReader(io.StringIO(texto_csv))
 
-    potencial_global_zona = defaultdict(lambda: {
+    potencial_por_zona = defaultdict(lambda: {
         "suma_potencial": 0.0,
         "contador": 0
     })
 
-    clima_mensual_zona = {}
-
     tile_fallback = extraer_tile_desde_ruta(ruta_hdfs)
-
     filas_validas = 0
 
     for fila in lector:
@@ -151,103 +146,50 @@ def procesar_csv_clima(ruta_hdfs: str):
             if not id_zona:
                 continue
 
-            valid_time = fila["valid_time"]
-            mes = int(valid_time[5:7])
-
-            radiacion = float(fila["ssrd_kWhm2"])
-            nubosidad = float(fila["tcc"])
-            temperatura = float(fila["t2m_C"])
             potencial = float(fila["potencial_0_1"])
 
         except Exception:
             continue
 
-        potencial_global_zona[id_zona]["suma_potencial"] += potencial
-        potencial_global_zona[id_zona]["contador"] += 1
-
-        clave_mensual = (id_zona, mes)
-
-        if clave_mensual not in clima_mensual_zona:
-            clima_mensual_zona[clave_mensual] = {
-                "suma_rad": 0.0,
-                "suma_nub": 0.0,
-                "suma_temp": 0.0,
-                "max_temp": temperatura,
-                "min_temp": temperatura,
-                "contador": 0
-            }
-
-        grupo = clima_mensual_zona[clave_mensual]
-
-        grupo["suma_rad"] += radiacion
-        grupo["suma_nub"] += nubosidad
-        grupo["suma_temp"] += temperatura
-        grupo["contador"] += 1
-        grupo["max_temp"] = max(grupo["max_temp"], temperatura)
-        grupo["min_temp"] = min(grupo["min_temp"], temperatura)
+        potencial_por_zona[id_zona]["suma_potencial"] += potencial
+        potencial_por_zona[id_zona]["contador"] += 1
 
         filas_validas += 1
 
-    return potencial_global_zona, clima_mensual_zona, filas_validas
+    return potencial_por_zona, filas_validas
 
 
-def combinar_acumulados(destino_potencial, destino_mensual, parcial_potencial, parcial_mensual):
-    for id_zona, valores in parcial_potencial.items():
-        destino_potencial[id_zona]["suma_potencial"] += valores["suma_potencial"]
-        destino_potencial[id_zona]["contador"] += valores["contador"]
+def combinar_potenciales(destino, parcial):
+    for id_zona, valores in parcial.items():
+        destino[id_zona]["suma_potencial"] += valores["suma_potencial"]
+        destino[id_zona]["contador"] += valores["contador"]
 
-    for clave, valores in parcial_mensual.items():
-        if clave not in destino_mensual:
-            destino_mensual[clave] = valores.copy()
-        else:
-            grupo = destino_mensual[clave]
-            grupo["suma_rad"] += valores["suma_rad"]
-            grupo["suma_nub"] += valores["suma_nub"]
-            grupo["suma_temp"] += valores["suma_temp"]
-            grupo["contador"] += valores["contador"]
-            grupo["max_temp"] = max(grupo["max_temp"], valores["max_temp"])
-            grupo["min_temp"] = min(grupo["min_temp"], valores["min_temp"])
+
+def generar_datos_update(potencial_global_zona):
+    datos_update = []
+
+    for id_zona, valores in sorted(potencial_global_zona.items()):
+        contador = valores["contador"]
+
+        if contador == 0:
+            continue
+
+        potencial_medio = valores["suma_potencial"] / contador
+
+        datos_update.append((
+            potencial_medio,
+            id_zona
+        ))
+
+    return datos_update
 
 
 # ============================================================
 # CARGA SQL
 # ============================================================
 
-def generar_datos_insertar(potencial_global_zona, clima_mensual_zona):
-    datos_a_insertar = []
-
-    for (id_zona, mes), valores_mensuales in sorted(clima_mensual_zona.items()):
-        cantidad = valores_mensuales["contador"]
-
-        if cantidad == 0:
-            continue
-
-        datos_potencial = potencial_global_zona[id_zona]
-
-        if datos_potencial["contador"] == 0:
-            continue
-
-        media_rad = valores_mensuales["suma_rad"] / cantidad
-        media_nub = valores_mensuales["suma_nub"] / cantidad
-        media_temp = valores_mensuales["suma_temp"] / cantidad
-        media_potencial = datos_potencial["suma_potencial"] / datos_potencial["contador"]
-
-        datos_a_insertar.append((
-            id_zona,
-            mes,
-            media_rad,
-            media_nub,
-            media_temp,
-            valores_mensuales["max_temp"],
-            valores_mensuales["min_temp"],
-            media_potencial
-        ))
-
-    return datos_a_insertar
-
-
-def cargar_en_mysql(datos_a_insertar):
-    print("\n2. Conectando a MySQL y cargando fact_clima_agregado_mensual...")
+def actualizar_potencial_en_dim_zona(datos_update):
+    print("\n2. Conectando a MySQL y actualizando dim_zona.potencial_medio...")
 
     conn = mysql.connector.connect(
         host=DB_HOST,
@@ -259,25 +201,20 @@ def cargar_en_mysql(datos_a_insertar):
     cursor = conn.cursor()
 
     try:
-        cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
-        cursor.execute("TRUNCATE TABLE fact_clima_agregado_mensual;")
-        cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
-
         sql = """
-            INSERT INTO fact_clima_agregado_mensual 
-            (id_zona, mes, radiacion_media_mes, nubosidad_media_mes, 
-             temperatura_media_mes, temperatura_maxima_mes, temperatura_minima_mes, potencial_medio)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            UPDATE dim_zona
+            SET potencial_medio = %s
+            WHERE id_zona = %s
         """
 
-        cursor.executemany(sql, datos_a_insertar)
+        cursor.executemany(sql, datos_update)
         conn.commit()
 
-        print(f"-> Éxito: {cursor.rowcount} registros insertados correctamente.")
+        print(f"-> Éxito: {cursor.rowcount} zonas actualizadas correctamente.")
 
     except Exception as e:
         conn.rollback()
-        print(f"-> Error durante la inserción en base de datos: {e}")
+        print(f"-> Error durante la actualización en base de datos: {e}")
         raise
 
     finally:
@@ -289,8 +226,8 @@ def cargar_en_mysql(datos_a_insertar):
 # MAIN
 # ============================================================
 
-def transformar_y_cargar_clima():
-    print("1. Leyendo datos desde Silver en HDFS...")
+def transformar_y_cargar_potencial_zona():
+    print("1. Leyendo potencial desde Silver en HDFS...")
 
     if not existe_hdfs(RUTA_CLIMA_SILVER):
         raise RuntimeError(f"No existe la ruta en HDFS: {RUTA_CLIMA_SILVER}")
@@ -303,7 +240,7 @@ def transformar_y_cargar_clima():
     ]
 
     print(f"-> CSV encontrados en Silver: {len(archivos)}")
-    print(f"-> CSV válidos de clima     : {len(archivos_validos)}")
+    print(f"-> CSV válidos de potencial : {len(archivos_validos)}")
     print(f"-> Workers                 : {MAX_WORKERS}")
 
     potencial_global_zona = defaultdict(lambda: {
@@ -311,14 +248,12 @@ def transformar_y_cargar_clima():
         "contador": 0
     })
 
-    clima_mensual_zona = {}
-
     filas_totales = 0
     errores = 0
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futuros = {
-            executor.submit(procesar_csv_clima, ruta): ruta
+            executor.submit(procesar_csv_potencial, ruta): ruta
             for ruta in archivos_validos
         }
 
@@ -326,13 +261,11 @@ def transformar_y_cargar_clima():
             ruta = futuros[futuro]
 
             try:
-                parcial_potencial, parcial_mensual, filas_validas = futuro.result()
+                parcial_potencial, filas_validas = futuro.result()
 
-                combinar_acumulados(
+                combinar_potenciales(
                     potencial_global_zona,
-                    clima_mensual_zona,
-                    parcial_potencial,
-                    parcial_mensual
+                    parcial_potencial
                 )
 
                 filas_totales += filas_validas
@@ -349,19 +282,16 @@ def transformar_y_cargar_clima():
     print(f"-> Filas válidas procesadas: {filas_totales}")
     print(f"-> Errores de fichero      : {errores}")
 
-    datos_a_insertar = generar_datos_insertar(
-        potencial_global_zona,
-        clima_mensual_zona
-    )
+    datos_update = generar_datos_update(potencial_global_zona)
 
-    print(f"-> Cálculos listos: {len(datos_a_insertar)} filas agregadas preparadas.")
+    print(f"-> Cálculos listos: {len(datos_update)} zonas preparadas para actualizar.")
 
-    if not datos_a_insertar:
-        print("No hay datos para insertar.")
+    if not datos_update:
+        print("No hay datos para actualizar.")
         return
 
-    cargar_en_mysql(datos_a_insertar)
+    actualizar_potencial_en_dim_zona(datos_update)
 
 
 if __name__ == "__main__":
-    transformar_y_cargar_clima()
+    transformar_y_cargar_potencial_zona()
