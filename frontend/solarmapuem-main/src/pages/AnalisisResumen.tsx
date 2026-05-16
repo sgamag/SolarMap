@@ -1,109 +1,71 @@
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Bookmark, Square, Compass, Euro, CalendarClock } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { useState } from "react";
 import PageLayout from "@/components/PageLayout";
-import { Button } from "@/components/ui/button";
-import { useAuth } from "@/context/AuthContext";
-import { toast } from "sonner";
 
-const cards = [
-  { icon: Square, label: "m² de tejado útil", title: "Superficie útil" },
-  { icon: Compass, label: "orientación principal", title: "Orientación" },
-  { icon: Euro, label: "€ de ahorro anual estimado", title: "Ahorro estimado primer año" },
-  { icon: CalendarClock, label: "años de amortización estimados", title: "Tiempo de amortización" },
-];
+// ─── Configuración Power BI ───────────────────────────────────────────────────
+const POWERBI_BASE_URL =
+  "https://app.powerbi.com/reportEmbed" +
+  "?reportId=eb17de9c-61c6-4b26-884d-17a767fcfd71" +
+  "&autoAuth=true" +
+  "&ctid=032115c7-35fe-4637-b2c3-d0a42906ba7b";
+
+// Nombre EXACTO de tabla y campo en el modelo de Power BI
+const PBI_TABLE = "fatc_tejados_detectados";
+const PBI_FIELD = "id_tejado";
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Construye la URL de embedding añadiendo el filtro de Power BI si hay roof_id.
+ *
+ * Sintaxis del filtro:
+ *   &filter=NombreTabla/NombreCampo eq 'valor'
+ *
+ * Si id_tejado es numérico en tu modelo (no texto), quita las comillas simples:
+ *   eq ${roofId}   →  en lugar de   eq '${roofId}'
+ */
+function buildEmbedUrl(roofId: string | null): string {
+  const url = new URL(POWERBI_BASE_URL);
+
+  if (roofId) {
+    // Cambia a eq ${roofId} (sin comillas) si el campo es numérico en Power BI
+    const filter = `${PBI_TABLE}/${PBI_FIELD} eq '${roofId}'`;
+    url.searchParams.set("filter", filter);
+  }
+
+  return url.toString();
+}
 
 export default function AnalisisResumen() {
   const [params] = useSearchParams();
-  const navigate = useNavigate();
-  const { isAuthenticated, saveAddress, user } = useAuth();
-  const address = params.get("address") || "Calle Guazalate, 2 · Villaviciosa de Odón";
-  const roofId = params.get("roof_id") || undefined;
+  const [loaded, setLoaded] = useState(false);
 
-  const alreadySaved = !!user?.savedAddresses?.some(
-    (a) => a.address === address && a.roofId === roofId
-  );
-
-  const handleSave = () => {
-    if (!isAuthenticated) {
-      toast("Inicia sesión para guardar esta dirección", {
-        action: { label: "Iniciar sesión", onClick: () => navigate("/login?next=/mapa") },
-      });
-      return;
-    }
-    saveAddress(address, roofId);
-    toast.success("Dirección guardada ✓");
-  };
-
-  const goToProveedores = () => {
-    const qs = new URLSearchParams();
-    qs.set("address", address);
-    if (roofId) qs.set("roof_id", roofId);
-    navigate(`/analisis/proveedores?${qs.toString()}`);
-  };
+  const roofId = params.get("roof_id");
+  const embedUrl = buildEmbedUrl(roofId);
 
   return (
     <PageLayout>
-      <section className="container-page py-10 space-y-8">
-        {/* Header */}
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-3">
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-3xl md:text-4xl font-extrabold text-primary">{address}</h1>
-              <Button asChild size="sm" variant="outline">
-                <Link to="/mapa">
-                  <ArrowLeft className="h-4 w-4" /> Cambiar dirección o tejado
-                </Link>
-              </Button>
-            </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className="bg-solar/20 text-foreground border border-solar/40 text-xs font-semibold px-3 py-1.5 rounded-full">
-                Resultado provisional
-              </span>
-              <Button
-                size="sm"
-                variant={alreadySaved ? "secondary" : "coral"}
-                onClick={handleSave}
-                disabled={alreadySaved}
-              >
-                <Bookmark className="h-4 w-4" />
-                {alreadySaved ? "Dirección guardada" : "Guardar dirección"}
-              </Button>
-            </div>
+      {/* Ocupa toda la altura disponible menos la navbar */}
+      <div className="relative w-full h-[calc(100vh-4rem)]">
+
+        {/* Loader mientras el iframe inicializa */}
+        {!loaded && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background z-10">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            <span className="text-sm text-muted-foreground">Cargando análisis solar…</span>
           </div>
-        </div>
+        )}
 
-        {/* 4 tarjetas */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {cards.map((c) => (
-            <div
-              key={c.title}
-              className="rounded-2xl border border-border bg-card p-6 flex flex-col gap-3 hover:border-accent transition-colors"
-            >
-              <div className="h-12 w-12 rounded-full bg-accent/10 flex items-center justify-center text-accent">
-                <c.icon className="h-6 w-6" />
-              </div>
-              <div>
-                <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                  {c.title}
-                </div>
-                <div className="text-2xl font-extrabold text-primary mt-1">Pendiente de conexión</div>
-                <div className="text-sm text-muted-foreground mt-1">{c.label}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <p className="text-sm text-muted-foreground max-w-3xl">
-          Estimación basada en datos climáticos ERA5 y geometría del tejado. Resultado provisional
-          pendiente de conexión al modelo.
-        </p>
-
-        <div className="pt-4">
-          <Button variant="coral" size="lg" onClick={goToProveedores}>
-            Ver proveedores disponibles <ArrowRight className="h-5 w-5" />
-          </Button>
-        </div>
-      </section>
+        <iframe
+          title="CMandosPotencial"
+          src={embedUrl}
+          allowFullScreen
+          onLoad={() => setLoaded(true)}
+          className={`w-full h-full border-0 transition-opacity duration-500 ${
+            loaded ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      </div>
     </PageLayout>
   );
 }
