@@ -50,9 +50,6 @@ export default function Perfil() {
             {user.nombre} {user.apellidos}
           </h1>
           <p className="text-white/80 mt-1" style={{ fontSize: "16px" }}>{user.email}</p>
-          <span className="mt-4 inline-block border border-white/60 text-white text-xs font-semibold px-3 py-1.5 rounded-full">
-            Cuenta demo · Autenticación pendiente
-          </span>
         </div>
       </section>
 

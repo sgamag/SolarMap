@@ -88,9 +88,6 @@ export default function Index() {
         <div className="absolute inset-0" style={{ backgroundColor: "rgba(0,0,0,0.50)" }} />
 
         <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-3xl">
-          <span className="inline-block bg-white/15 backdrop-blur-sm border border-white/20 text-white text-xs font-semibold px-4 py-1.5 rounded-full mb-6">
-            Prototipo visual · Datos pendientes de conexión
-          </span>
           <h1 className="text-white font-bold leading-none tracking-tight" style={{ fontSize: "clamp(3rem, 8vw, 80px)", letterSpacing: "-0.02em" }}>
             SolarMap
           </h1>
@@ -108,11 +105,6 @@ export default function Index() {
               <Link to="/analisis">Ver análisis demo</Link>
             </Button>
           </div>
-          <div className="flex flex-wrap gap-x-8 gap-y-2 justify-center mt-8 text-white/90 text-sm font-medium">
-            <span>✓ Sin compromiso</span>
-            <span>✓ Datos abiertos ERA5</span>
-            <span>✓ Proyecto académico</span>
-          </div>
         </div>
       </section>
 
@@ -123,7 +115,7 @@ export default function Index() {
         eyebrow="Datos climáticos"
         eyebrowColor="text-accent"
         title="25 años de datos del cielo de Madrid"
-        description="Radiación solar, temperatura y nubosidad horaria descargada desde Copernicus ERA5. Variables reales: ssrd_kWhm2, t2m_C, tcc."
+        description="Radiación solar (energía que llega del sol por metro cuadrado), temperatura ambiente y nubosidad horaria descargada desde Copernicus ERA5. Las tres variables clave para estimar la producción real de un panel fotovoltaico."
         cta={{ label: "Saber más", to: "/quienes-somos", variant: "outline-white" }}
         fallbackBg="#1a2332"
       />
@@ -135,7 +127,7 @@ export default function Index() {
         eyebrow="Análisis geoespacial"
         eyebrowColor="text-solar"
         title="36 zonas. Cada tejado, analizado."
-        description="Cuadrícula de 8×8 km sobre el área metropolitana de Madrid. Detección automática de tejados sobre ortofotos PNOA."
+        description="Cuadrícula de 8×8 km sobre el área metropolitana de Madrid. Detección automática de tejados sobre imágenes satélite."
         cta={{ label: "Ver el mapa", to: "/mapa", variant: "outline-white" }}
         fallbackBg="#0F1A2E"
       />
@@ -147,7 +139,7 @@ export default function Index() {
         eyebrow="Resultados visuales"
         eyebrowColor="text-trust"
         title="Del dato al mapa, en segundos."
-        description="Mapas interactivos, tablas de variables y un índice de potencial solar de 0 a 1 para cada tejado del área metropolitana."
+        description="Informe personalizado por tejado y puesta en contacto con instaladoras certificadas para llevar tu instalación al siguiente paso."
         cta={{ label: "Ver análisis demo", to: "/analisis", variant: "coral" }}
         fallbackBg="#1a2332"
       />

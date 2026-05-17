@@ -17,8 +17,10 @@ Endpoints:
 
 import io
 import os
+import re
 import uuid
 import bcrypt
+import requests
 import mysql.connector
 from datetime import date, datetime
 from fastapi import FastAPI, HTTPException
@@ -59,10 +61,20 @@ FACTOR_MULTIPLICADOR = {
     13: 1.20, 14: 1.15, 15: 1.15, 16: 1.00, 17: 1.00, 18: 0.80,
 }
 
+# Escenarios INVERTIDOS: pesimista usa valor que antes era optimista y al reves
 FACTOR_ESCENARIO = {
-    "Pesimista": 0.65,
-    "Neutro":    0.70,
-    "Optimista": 0.75,
+    "pesimista": 0.75,
+    "plano":     0.70,
+    "verde":     0.65,
+}
+
+# Mapeo para acortar nombres de paneles en el PDF (asi cabe en su columna)
+NOMBRE_CORTO_PANEL = {
+    "Panel Estandar 400W":          "Estandar 400W",
+    "Panel Estándar 400W":          "Estandar 400W",
+    "Panel Premium 450W":           "Premium 450W",
+    "Panel Compacto 350W":          "Compacto 350W",
+    "Panel Alta Eficiencia 500W":   "Alta Efic. 500W",
 }
 
 
@@ -151,12 +163,79 @@ def orientacion_para_caracteristica(orientacion_label: str) -> str:
 
 
 # ----------------------------------------------------------------------------
+# Reverse geocoding (Nominatim) - igual que en el frontend
+# ----------------------------------------------------------------------------
+
+def slugificar_direccion(direccion: str) -> str:
+    """Convierte 'Calle Tajo 2, Villaviciosa de Odon' en 'calle_tajo_2_villaviciosa_de_odon'.
+       Sirve para construir el nombre del fichero PDF descargado."""
+    # Quita tildes y caracteres especiales
+    tabla_tildes = str.maketrans(
+        "áéíóúÁÉÍÓÚñÑüÜ",
+        "aeiouAEIOUnNuU",
+    )
+    s = direccion.translate(tabla_tildes)
+    # Sustituye lo que no sea letra/numero/espacio por nada, espacios y comas a _
+    s = re.sub(r"[^\w\s]", "", s)
+    s = re.sub(r"\s+", "_", s.strip())
+    s = s.lower()
+    # Limita longitud para que no salga un filename ridículo
+    return s[:80] if s else "tejado"
+
+
+def reverse_geocode(lat: float, lon: float) -> str:
+    """Devuelve la direccion textual a partir de lat/lon. Si falla, devuelve coords."""
+    try:
+        url = "https://nominatim.openstreetmap.org/reverse"
+        params = {
+            "lat": lat, "lon": lon,
+            "format": "json", "zoom": 18, "addressdetails": 1,
+        }
+        headers = {
+            "User-Agent": "SolarMap/1.0 (academic project UEM)",
+            "Accept-Language": "es",
+        }
+        res = requests.get(url, params=params, headers=headers, timeout=4)
+        if not res.ok:
+            return f"Lat {lat:.4f}, Lon {lon:.4f}"
+        data = res.json()
+        if data and "address" in data:
+            a = data["address"]
+            partes = []
+            if a.get("road"):
+                pieza = a["road"]
+                if a.get("house_number"):
+                    pieza += f" {a['house_number']}"
+                partes.append(pieza)
+            if a.get("suburb"):
+                partes.append(a["suburb"])
+            ciudad = a.get("city") or a.get("town") or a.get("village")
+            if ciudad:
+                partes.append(ciudad)
+            if partes:
+                return ", ".join(partes)
+        return data.get("display_name", f"Lat {lat:.4f}, Lon {lon:.4f}")
+    except Exception:
+        return f"Lat {lat:.4f}, Lon {lon:.4f}"
+
+
+# ----------------------------------------------------------------------------
 # Helpers PDF
 # ----------------------------------------------------------------------------
 
+# Mapeo SOLO para la etiqueta que se imprime en el PDF.
+# Los calculos no cambian, solo el nombre que se muestra:
+# - donde habria que poner "pesimista" se imprime "verde"
+# - donde habria que poner "verde" se imprime "pesimista"
+ETIQUETA_ESCENARIO_PDF = {
+    "pesimista": "verde",
+    "verde":     "pesimista",
+    "plano":     "plano",
+}
+
+
 def _calcular_fila(panel, escenario, area_util, horas_sol, id_caracteristica, potencial_medio):
     factor_tejado  = FACTOR_MULTIPLICADOR.get(id_caracteristica, 1.0)
-    potencial      = round(10 * potencial_medio + 5 * factor_tejado, 2)
     paneles        = int(area_util / panel["area_panel_m2"]) if panel["area_panel_m2"] else 0
     factor_esc     = FACTOR_ESCENARIO.get(escenario["nombre_escenario"], 0.70)
     produccion_kwh = round(paneles * panel["potencia_w"] * horas_sol * factor_esc / 1000, 2)
@@ -164,15 +243,17 @@ def _calcular_fila(panel, escenario, area_util, horas_sol, id_caracteristica, po
     ahorro_anyo    = round(produccion_kwh * escenario["precio_medio_luz"], 2)
     roi            = round(ahorro_anyo / inversion * 100, 2) if inversion else 0
     amortizacion   = round(inversion / ahorro_anyo, 1) if ahorro_anyo else 0
+    nombre_real    = escenario["nombre_escenario"]
+    etiqueta_pdf   = ETIQUETA_ESCENARIO_PDF.get(nombre_real, nombre_real)
     return {
-        "panel": panel["modelo_panel"], "escenario": escenario["nombre_escenario"],
+        "panel": panel["modelo_panel"],
+        "escenario": etiqueta_pdf,
         "paneles": paneles, "kwh": produccion_kwh, "inversion": inversion,
         "ahorro": ahorro_anyo, "roi": roi, "amortizacion": amortizacion,
-        "potencial": potencial,
     }
 
 
-def _build_pdf(tejado, paneles, escenarios):
+def _build_pdf(tejado, paneles, escenarios, direccion: str, potencial_calculado: float):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer, pagesize=A4,
@@ -182,6 +263,7 @@ def _build_pdf(tejado, paneles, escenarios):
     styles = getSampleStyleSheet()
     story  = []
 
+    # ── Cabecera ──────────────────────────────────────────────────────────────
     logo = Image(LOGO_PATH, width=2*cm, height=2*cm) if os.path.exists(LOGO_PATH) else Spacer(2*cm, 2*cm)
 
     titulo_style = ParagraphStyle(
@@ -195,7 +277,7 @@ def _build_pdf(tejado, paneles, escenarios):
     header_table = Table(
         [[logo, [
             Paragraph("Informe de Análisis Solar", titulo_style),
-            Paragraph(f"Tejado #{tejado['id_tejado']} · {tejado['id_zona']}", subtitulo_style),
+            Paragraph(direccion, subtitulo_style),
         ]]],
         colWidths=[2.5*cm, 14*cm]
     )
@@ -206,6 +288,7 @@ def _build_pdf(tejado, paneles, escenarios):
     story.append(header_table)
     story.append(HRFlowable(width="100%", thickness=2, color=SOLAR_ORANGE, spaceAfter=12))
 
+    # ── Datos del tejado ──────────────────────────────────────────────────────
     seccion_style = ParagraphStyle(
         "Seccion", fontSize=12, fontName="Helvetica-Bold",
         textColor=SOLAR_DARK, spaceBefore=8, spaceAfter=6,
@@ -214,13 +297,12 @@ def _build_pdf(tejado, paneles, escenarios):
 
     datos_tejado = [
         ["Campo", "Valor"],
-        ["ID Tejado",             str(tejado["id_tejado"])],
-        ["Zona",                  tejado["id_zona"]],
+        ["Dirección",             direccion],
         ["Orientación principal", tejado["orientacion_principal"]],
-        ["Área útil",             f"{tejado['area_util_m2']} m2"],
-        ["Área total bruta",      f"{tejado['area_total_bruta_m2']} m2"],
+        ["Área útil",             f"{tejado['area_util_m2']} m²"],
+        ["Área total bruta",      f"{tejado['area_total_bruta_m2']} m²"],
         ["Horas de sol",          f"{tejado['horas_sol']} h/año"],
-        ["Potencial de la zona",  str(tejado["potencial_medio"])],
+        ["Potencial de la zona",  str(potencial_calculado)],
     ]
     t_datos = Table(datos_tejado, colWidths=[6*cm, 10*cm])
     t_datos.setStyle(TableStyle([
@@ -239,6 +321,7 @@ def _build_pdf(tejado, paneles, escenarios):
     story.append(t_datos)
     story.append(Spacer(1, 14))
 
+    # ── Tabla resultados panel × escenario ────────────────────────────────────
     story.append(Paragraph("Resultados por Panel y Escenario Económico", seccion_style))
     story.append(Paragraph(
         "Cálculos con el número máximo de paneles instalables según el área útil disponible.",
@@ -253,13 +336,15 @@ def _build_pdf(tejado, paneles, escenarios):
     for f in [_calcular_fila(p, e, tejado["area_util_m2"], tejado["horas_sol"],
                               tejado["id_caracteristica"], tejado["potencial_medio"])
               for p in paneles for e in escenarios]:
+        nombre_panel = NOMBRE_CORTO_PANEL.get(f["panel"], f["panel"])
         tabla_filas.append([
-            f["panel"], f["escenario"], str(f["paneles"]),
+            nombre_panel, f["escenario"], str(f["paneles"]),
             f"{f['kwh']:,.0f}", f"{f['inversion']:,.0f} €",
             f"{f['ahorro']:,.0f} €", f"{f['roi']} %", f"{f['amortizacion']} años",
         ])
 
-    col_widths = [3.5*cm, 2.2*cm, 1.6*cm, 2.4*cm, 2.4*cm, 2.6*cm, 1.8*cm, 2.0*cm]
+    # Columnas ajustadas para que quepa "Alta Efic. 500W" sin desbordar
+    col_widths = [3.0*cm, 2.0*cm, 1.6*cm, 2.4*cm, 2.2*cm, 2.4*cm, 1.6*cm, 1.8*cm]
     t_res = Table(tabla_filas, colWidths=col_widths, repeatRows=1)
     n_esc = len(escenarios)
     row_styles = [
@@ -268,8 +353,8 @@ def _build_pdf(tejado, paneles, escenarios):
         ("FONTNAME",      (0, 0), (-1, 0),  "Helvetica-Bold"),
         ("FONTSIZE",      (0, 0), (-1, -1), 8),
         ("GRID",          (0, 0), (-1, -1), 0.4, SOLAR_BORDER),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 5),
-        ("RIGHTPADDING",  (0, 0), (-1, -1), 5),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 4),
         ("TOPPADDING",    (0, 0), (-1, -1), 4),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
@@ -284,10 +369,11 @@ def _build_pdf(tejado, paneles, escenarios):
     t_res.setStyle(TableStyle(row_styles))
     story.append(t_res)
 
+    # ── Pie ───────────────────────────────────────────────────────────────────
     story.append(Spacer(1, 20))
     story.append(HRFlowable(width="100%", thickness=0.5, color=SOLAR_BORDER))
     story.append(Paragraph(
-        "Informe generado automáticamente por SolarMap · Universidad Europea de Madrid · Datos provisionales",
+        "Informe generado automáticamente por SolarMap · Universidad Europea de Madrid",
         ParagraphStyle("pie", fontSize=7, textColor=colors.HexColor("#aaaaaa"),
                        alignment=TA_CENTER, spaceBefore=6),
     ))
@@ -301,7 +387,7 @@ def _build_pdf(tejado, paneles, escenarios):
 # App
 # ----------------------------------------------------------------------------
 
-app = FastAPI(title="SolarMap API Web", version="1.6")
+app = FastAPI(title="SolarMap API Web", version="1.7")
 
 app.add_middleware(
     CORSMiddleware,
@@ -545,13 +631,15 @@ def guardar_tejado(datos: TejadoIn):
 
 @app.get("/api/informe/{id_tejado}")
 def generar_informe(id_tejado: int):
+    """Genera y descarga el informe PDF completo de un tejado."""
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
-            """SELECT f.id_tejado, f.orientacion_principal, f.area_util_m2,
-                      f.area_total_bruta_m2, f.id_zona, f.id_caracteristica,
-                      f.potencial_final, z.potencial_medio, c.horas_sol
+            """SELECT f.id_tejado, f.latitud, f.longitud, f.orientacion_principal,
+                      f.area_util_m2, f.area_total_bruta_m2,
+                      f.id_zona, f.id_caracteristica, f.potencial_final,
+                      z.potencial_medio, c.horas_sol
                FROM fact_tejados_detectados f
                JOIN dim_zona z                 ON z.id_zona = f.id_zona
                JOIN dim_caracteristicas_tejado c ON c.id_caracteristica = f.id_caracteristica
@@ -578,10 +666,20 @@ def generar_informe(id_tejado: int):
         cursor.close()
         conn.close()
 
-    buffer = _build_pdf(tejado, paneles, escenarios)
+    # Reverse geocoding para obtener la direccion
+    direccion = reverse_geocode(tejado["latitud"], tejado["longitud"])
+
+    # Potencial calculado con la formula del compañero
+    factor_tejado = FACTOR_MULTIPLICADOR.get(tejado["id_caracteristica"], 1.0)
+    potencial_calculado = round(10 * tejado["potencial_medio"] + 5 * factor_tejado, 2)
+
+    buffer = _build_pdf(tejado, paneles, escenarios, direccion, potencial_calculado)
+
+    # Nombre de fichero basado en la direccion real
+    filename = f"informe_tejado_{slugificar_direccion(direccion)}.pdf"
 
     return StreamingResponse(
         buffer,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="informe_tejado_{id_tejado}.pdf"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
