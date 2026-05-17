@@ -46,32 +46,25 @@ DB_USER = os.getenv("DB_USER", "bd_rvm_solar_map")
 DB_PASS = os.getenv("DB_PASS", "Mar123Qz")
 DB_NAME = os.getenv("DB_NAME", "bd_rvm_solar_map")
 
-# Ruta al logo — ponlo en la misma carpeta que main.py
 LOGO_PATH = os.path.join(os.path.dirname(__file__), "logo_solarmap.png")
 
-# Colores corporativos SolarMap
 SOLAR_ORANGE = colors.HexColor("#F5A623")
 SOLAR_DARK   = colors.HexColor("#1a1a2e")
 SOLAR_GREY   = colors.HexColor("#f5f5f5")
 SOLAR_BORDER = colors.HexColor("#e0e0e0")
 
-# Factor multiplicador por id_caracteristica (mismo que DAX)
 FACTOR_MULTIPLICADOR = {
     1: 0.95, 2: 0.85, 3: 0.85, 4: 0.75, 5: 0.75, 6: 0.60,
     7: 1.10, 8: 1.05, 9: 1.05, 10: 0.90, 11: 0.90, 12: 0.70,
     13: 1.20, 14: 1.15, 15: 1.15, 16: 1.00, 17: 1.00, 18: 0.80,
 }
 
-# Factor de eficiencia por escenario (mismo que DAX)
 FACTOR_ESCENARIO = {
     "Pesimista": 0.65,
     "Neutro":    0.70,
     "Optimista": 0.75,
 }
 
-# ----------------------------------------------------------------------------
-# Helpers BD
-# ----------------------------------------------------------------------------
 
 def get_db():
     return mysql.connector.connect(
@@ -104,10 +97,6 @@ def clasificar_tamano(area_util_m2: float) -> str:
         return "Grande"
     return "Mediano"
 
-
-# ----------------------------------------------------------------------------
-# Orientaciones
-# ----------------------------------------------------------------------------
 
 ORIENTACIONES_SIMPLES = {"Sur", "Sureste", "Suroeste", "Este", "Oeste", "Norte"}
 ORIENTACIONES_COMBINADAS_VALIDAS = {"Norte-Sur", "Este-Oeste"}
@@ -166,7 +155,6 @@ def orientacion_para_caracteristica(orientacion_label: str) -> str:
 # ----------------------------------------------------------------------------
 
 def _calcular_fila(panel, escenario, area_util, horas_sol, id_caracteristica, potencial_medio):
-    """Calcula todos los KPIs para una combinación panel × escenario."""
     factor_tejado  = FACTOR_MULTIPLICADOR.get(id_caracteristica, 1.0)
     potencial      = round(10 * potencial_medio + 5 * factor_tejado, 2)
     paneles        = int(area_util / panel["area_panel_m2"]) if panel["area_panel_m2"] else 0
@@ -185,7 +173,6 @@ def _calcular_fila(panel, escenario, area_util, horas_sol, id_caracteristica, po
 
 
 def _build_pdf(tejado, paneles, escenarios):
-    """Construye el PDF y devuelve un BytesIO listo para streamear."""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer, pagesize=A4,
@@ -195,7 +182,6 @@ def _build_pdf(tejado, paneles, escenarios):
     styles = getSampleStyleSheet()
     story  = []
 
-    # ── Cabecera ──────────────────────────────────────────────────────────────
     logo = Image(LOGO_PATH, width=2*cm, height=2*cm) if os.path.exists(LOGO_PATH) else Spacer(2*cm, 2*cm)
 
     titulo_style = ParagraphStyle(
@@ -220,7 +206,6 @@ def _build_pdf(tejado, paneles, escenarios):
     story.append(header_table)
     story.append(HRFlowable(width="100%", thickness=2, color=SOLAR_ORANGE, spaceAfter=12))
 
-    # ── Datos del tejado ──────────────────────────────────────────────────────
     seccion_style = ParagraphStyle(
         "Seccion", fontSize=12, fontName="Helvetica-Bold",
         textColor=SOLAR_DARK, spaceBefore=8, spaceAfter=6,
@@ -254,7 +239,6 @@ def _build_pdf(tejado, paneles, escenarios):
     story.append(t_datos)
     story.append(Spacer(1, 14))
 
-    # ── Tabla resultados panel × escenario ────────────────────────────────────
     story.append(Paragraph("Resultados por Panel y Escenario Económico", seccion_style))
     story.append(Paragraph(
         "Cálculos con el número máximo de paneles instalables según el área útil disponible.",
@@ -300,7 +284,6 @@ def _build_pdf(tejado, paneles, escenarios):
     t_res.setStyle(TableStyle(row_styles))
     story.append(t_res)
 
-    # ── Pie ───────────────────────────────────────────────────────────────────
     story.append(Spacer(1, 20))
     story.append(HRFlowable(width="100%", thickness=0.5, color=SOLAR_BORDER))
     story.append(Paragraph(
@@ -318,7 +301,7 @@ def _build_pdf(tejado, paneles, escenarios):
 # App
 # ----------------------------------------------------------------------------
 
-app = FastAPI(title="SolarMap API Web", version="1.5")
+app = FastAPI(title="SolarMap API Web", version="1.6")
 
 app.add_middleware(
     CORSMiddleware,
@@ -328,10 +311,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# ----------------------------------------------------------------------------
-# Modelos Pydantic
-# ----------------------------------------------------------------------------
 
 class RegistroIn(BaseModel):
     nombre: str
@@ -373,11 +352,9 @@ class TejadoOut(BaseModel):
     area_util_m2: float
     orientacion_principal: str
     potencial_final: float | None
+    latitud: float
+    longitud: float
 
-
-# ----------------------------------------------------------------------------
-# Endpoints — Auth
-# ----------------------------------------------------------------------------
 
 @app.get("/api/health")
 def health():
@@ -492,10 +469,6 @@ def login(datos: LoginIn):
         conn.close()
 
 
-# ----------------------------------------------------------------------------
-# Endpoints — Tejados
-# ----------------------------------------------------------------------------
-
 @app.post("/api/tejados/guardar", response_model=TejadoOut)
 def guardar_tejado(datos: TejadoIn):
     if datos.area_m2 <= 0:
@@ -505,7 +478,7 @@ def guardar_tejado(datos: TejadoIn):
     area_util  = round(area_bruta * 0.40, 2)
     tamano     = clasificar_tamano(area_util)
 
-    orientacion_guardar       = normalizar_orientacion_label(datos.orientation_label, datos.orientation_angle_degrees)
+    orientacion_guardar        = normalizar_orientacion_label(datos.orientation_label, datos.orientation_angle_degrees)
     orientacion_caracteristica = orientacion_para_caracteristica(orientacion_guardar)
 
     conn = get_db()
@@ -526,7 +499,7 @@ def guardar_tejado(datos: TejadoIn):
         if zona is None:
             raise HTTPException(status_code=404,
                 detail=f"No se encontro una zona para las coordenadas ({datos.lat}, {datos.lon})")
-        id_zona       = zona["id_zona"]
+        id_zona        = zona["id_zona"]
         potencial_zona = zona["potencial_medio"]
 
         cursor.execute(
@@ -557,6 +530,7 @@ def guardar_tejado(datos: TejadoIn):
             id_tejado=id_tejado, id_zona=id_zona, id_caracteristica=id_caracteristica,
             area_total_bruta_m2=area_bruta, area_util_m2=area_util,
             orientacion_principal=orientacion_guardar, potencial_final=potencial_zona,
+            latitud=datos.lat, longitud=datos.lon,
         )
     except HTTPException:
         conn.rollback()
@@ -569,13 +543,8 @@ def guardar_tejado(datos: TejadoIn):
         conn.close()
 
 
-# ----------------------------------------------------------------------------
-# Endpoints — Informe PDF
-# ----------------------------------------------------------------------------
-
 @app.get("/api/informe/{id_tejado}")
 def generar_informe(id_tejado: int):
-    """Genera y descarga el informe PDF completo de un tejado."""
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:

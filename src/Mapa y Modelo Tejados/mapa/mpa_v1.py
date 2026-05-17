@@ -136,17 +136,18 @@ mapa.get_root().html.add_child(folium.Element(f"""
     }}
 
     // ============================================================
-    // COLOR SEGUN LA ETIQUETA DE ORIENTACION
+    // COLOR SEGUN ORIENTACION - GRADIENTE AZUL
+    // Sur = azul oscuro (mejor)
+    // Norte = azul muy claro (peor)
     // ============================================================
-    // Asignamos un "score solar" a cada etiqueta y lo convertimos a color HSL
-    // (0 = rojo intenso, 1 = verde brillante).
     function colorPorOrientacion(label, angulo) {{
+        // Score solar por etiqueta: 1.0 = mejor (Sur), 0.0 = peor (Norte)
         const scores = {{
             "Sur":         1.00,
             "Sureste":     0.85,
             "Suroeste":    0.85,
-            "Norte-Sur":   0.75,   // una vertiente al sur, otra al norte
-            "Este-Oeste":  0.55,   // dos vertientes laterales
+            "Norte-Sur":   0.75,
+            "Este-Oeste":  0.55,
             "Este":        0.50,
             "Oeste":       0.50,
             "Norte":       0.00
@@ -154,17 +155,18 @@ mapa.get_root().html.add_child(folium.Element(f"""
 
         let score = scores[label];
 
-        // Si la etiqueta no esta mapeada, intentamos por angulo
         if (score === undefined && angulo !== null && angulo !== undefined) {{
             const diffSur = Math.abs(((angulo - 180 + 540) % 360) - 180);
             score = 1 - (diffSur / 180);
         }}
 
-        // Fallback final
         if (score === undefined) score = 0.5;
 
-        const hue = Math.round(score * 120);   // 0 = rojo, 120 = verde
-        return `hsl(${{hue}}, 75%, 45%)`;
+        // HSL azul: hue=215, saturation 60->90%, lightness 85->30%
+        // Score 0 -> luminoso (claro casi blanco), Score 1 -> oscuro intenso
+        const lightness  = Math.round(85 - score * 55);
+        const saturation = Math.round(60 + score * 30);
+        return `hsl(215, ${{saturation}}%, ${{lightness}}%)`;
     }}
 
     // ============================================================
@@ -251,7 +253,10 @@ mapa.get_root().html.add_child(folium.Element(f"""
             }}
 
             showAlert("Tejado guardado correctamente");
-            setTimeout(() => {{ window.parent.location.href = "/analisis/resumen"; }}, 800);
+
+            setTimeout(() => {{
+                window.parent.location.href = "/analisis/resumen";
+            }}, 800);
 
         }} catch (err) {{
             console.error(err);
@@ -385,7 +390,7 @@ mapa.get_root().html.add_child(folium.Element(f"""
                 return {{
                     color: color,
                     fillColor: color,
-                    fillOpacity: 0.55,
+                    fillOpacity: 0.65,
                     weight: 2
                 }};
             }},
